@@ -1,0 +1,32 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Data Handling & ML
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.5.2
+tqdm==4.66.5
+numba==0.58.1
+llvmlite==0.41.1
+torch
+tensorflow
+transformers
+
+# Audio Processing
+librosa==0.10.2.post1
+soundfile==0.12.1
+scipy==1.13.1
+audioread==3.0.1
+resampy
+mutagen
+
+# Vector Search
+faiss-cpu
+
+# Plotting
+matplotlib==3.9.0
+
+# Environment variables
+python-dotenv
