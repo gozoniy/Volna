@@ -342,6 +342,8 @@ export default function PlayerView({
 
           <div className="player-controls-wrapper">
 
+            <button onClick={onFindWave} className="control-button wave" disabled={isLoading}>Волна</button>
+
             <div className="player-controls">
 
               <button onClick={onPrev} className="control-button secondary" disabled={isLoading}><div className="icon-prev"></div></button>
@@ -350,9 +352,12 @@ export default function PlayerView({
 
               <button onClick={onNext} className="control-button secondary" disabled={isLoading}><div className="icon-next"></div></button>
 
-              <button onClick={onFindWave} className="control-button wave" disabled={isLoading}>🌊</button>
+              
 
-              <button 
+              
+
+            </div>
+            <button 
 
                 onClick={() => triggerAddTrackModal(false)}
 
@@ -365,9 +370,6 @@ export default function PlayerView({
                 +
 
               </button>
-
-            </div>
-
           </div>
 
         </div>

@@ -208,12 +208,13 @@ body {
 
 /* Кнопка "Добавить в плейлист" */
 .control-button.add-to-playlist {
-  width: 50px;
+  width: 100px;
   height: 50px;
-  border-radius: 50%;   /* круг */
-  padding: 0;           /* убираем лишние отступы */
-  line-height: 1;       /* чтобы текст/иконка не растягивали */
+  border-radius: 20px;
+  padding: 0;
+  line-height: 1;
 }
+
 
 .control-button.add-to-playlist:hover {
   transform: scale(1.05);
@@ -346,20 +347,49 @@ body {
 
 
 .player-track-title, .player-artist-name { text-align: center; max-width: 100%; }
-.player-controls-wrapper { display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%; max-width: 400px; margin-top: 20px; margin-left: auto; margin-right: auto; }
+.player-controls-wrapper {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  width: 100%;
+  max-width: 700px;
+  margin: 20px auto 0;
+}
+
 .custom-progress-track { flex-grow: 1; height: 8px; background-color: #4d4d4d; border-radius: 4px; position: relative; cursor: pointer; }
 .custom-progress-filled { position: absolute; top: 0; left: 0; height: 100%; background: var(--primary-color); border-radius: 4px; transition: width 0.2s ease-out, background-color 0.5s ease; }
 .custom-progress-thumb { position: absolute; top: 50%; width: 18px; height: 18px; background-color: #fff; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 5px rgba(0,0,0,0.5); transform: translate(-50%, -50%); transition: left 0.2s ease-out; }
 .progress-bar-container { width: 100%; max-width: 700px; display: flex; align-items: center; gap: 15px; margin-top: 20px; margin-bottom: 20px; }
 .time-display { font-size: 0.8rem; color: var(--text-color-secondary); }
-.player-controls { width: 100%; display: flex; justify-content: center; align-items: center; gap: 15px; }
+.player-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  max-width: 300px;
+  margin: 0 auto;       
+  width: fit-content;
+  justify-self: center;
+}
 .control-button { background-color: transparent; border: 1px solid var(--border-color); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.2s ease; box-sizing: border-box; }
 .control-button:disabled { cursor: not-allowed; opacity: 0.4; }
 .control-button:hover:not(:disabled) { border-color: var(--primary-color); transform: scale(1.05); }
 .control-button.secondary { width: 50px; height: 50px; }
 .control-button.play-pause { width: 70px; height: 70px; background-color: var(--primary-color); border-color: var(--primary-color); }
 .control-button.wave 
-{ width: 50px; height: 50px; font-size: 1.5rem; border-style: solid; line-height: 50px; padding: 0; }
+{ width: wrap; 
+  height: 50px; 
+  font-size: 1.5rem; 
+  border-style: solid; 
+  line-height: 50px; 
+  padding: 10px; 
+  border-radius: 20px;
+  color: var(--primary-color);
+  margin-right: auto;
+  flex-shrink: 0;
+  justify-self: start;
+}
+
 .icon-play { box-sizing: border-box; width: 0; height: 20px; border-style: solid; border-width: 10px 0 10px 18px; border-color: transparent transparent transparent #fff; margin-left: 5px; }
 .icon-pause { box-sizing: border-box; width: 18px; height: 20px; display: flex; justify-content: space-between; }
 .icon-pause::before, .icon-pause::after { content: ''; display: block; width: 6px; height: 20px; background-color: #fff; }
