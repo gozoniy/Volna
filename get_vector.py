@@ -22,30 +22,40 @@ def get_feature_vector(row):
     ], dtype=float)
 
 # --- читаем таблицу features ---
-def load_features(db_path=None):
-    if db_path is None:
-        db_path = os.getenv("DATABASE_URL", "music_features.db")
+def load_features(db_path=None, conn=None):
     t0 = time.perf_counter()
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    if conn is None:
+        if db_path is None:
+            db_path = os.getenv("DATABASE_URL", "music_features.db")
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        close_conn = True
+    else:
+        close_conn = False
     cur = conn.cursor()
     cur.execute("SELECT * FROM features")
     rows = cur.fetchall()
-    conn.close()
+    if close_conn:
+        conn.close()
     print(f"[TIMER] load_features: {time.perf_counter() - t0:.3f} сек")
     return rows
 
 # --- читаем таблицу genres ---
-def load_genres(db_path=None):
-    if db_path is None:
-        db_path = os.getenv("DATABASE_URL", "music_features.db")
+def load_genres(db_path=None, conn=None):
     t0 = time.perf_counter()
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    if conn is None:
+        if db_path is None:
+            db_path = os.getenv("DATABASE_URL", "music_features.db")
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        close_conn = True
+    else:
+        close_conn = False
     cur = conn.cursor()
     cur.execute("SELECT * FROM genres")
     rows = cur.fetchall()
-    conn.close()
+    if close_conn:
+        conn.close()
     print(f"[TIMER] load_genres: {time.perf_counter() - t0:.3f} сек")
     return rows
 
@@ -69,12 +79,13 @@ def build_genre_matrix(features, genres):
     return genre_vectors, all_labels
 
 # --- поиск похожих треков через NumPy ---
-def find_similar_tracks(target_id, db_path=None, top_n=10, metric="cosine"):
+def find_similar_tracks(target_id, db_path=None, conn=None, top_n=10, metric="cosine"):
     if db_path is None:
         db_path = os.getenv("DATABASE_URL", "music_features.db")
+    
     t0 = time.perf_counter()
-    features = load_features(db_path)
-    genres = load_genres(db_path)
+    features = load_features(db_path=db_path, conn=conn)
+    genres = load_genres(db_path=db_path, conn=conn)
     print(f"[TIMER] загрузка данных: {time.perf_counter() - t0:.3f} сек")
 
     t1 = time.perf_counter()

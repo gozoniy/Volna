@@ -4,7 +4,7 @@ import sqlite3
 import time
 import uuid
 from typing import List, Dict, Optional
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, status, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
@@ -23,6 +23,15 @@ except ImportError as e:
     def find_similar_tracks(*args, **kwargs): raise RuntimeError(f"Модуль get_vector не найден: {e}")
 
 DB_PATH = os.getenv("DATABASE_URL", "music_features.db")
+
+# Dependency
+def get_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
 GENRE_COLORS = {
     ('rock', 'guitar', 'metal', 'punk'): '#E53935',
     ('electronic music', 'techno', 'house music', 'trance', 'electronica', 'synth-pop', 'synthesizer'): '#1E88E5',
@@ -54,32 +63,40 @@ def get_color_for_genre(genre_label):
             if keyword in label_lower: return color
     return GENRE_COLORS[('default',)]
 
-def get_all_track_details(user_id: Optional[str] = None) -> Dict[int, Dict]:
+def get_all_track_details(user_id: Optional[str] = None, conn: Optional[sqlite3.Connection] = None) -> Dict[int, Dict]:
     details = {}
+    if conn is None: # Fallback for direct calls, though typically conn will be provided
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        close_conn = True
+    else:
+        close_conn = False
+
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            query = """
-                SELECT f.id, f.file, f.title, f.artist,
-                       (SELECT g.label FROM genres g WHERE g.track_id = f.id ORDER BY g.score DESC LIMIT 1) as primary_genre,
-                       h.last_played
-                FROM features f
-                LEFT JOIN listening_history h ON f.id = h.track_id AND h.user_id = ?
-            """
-            for row in cursor.execute(query, (user_id,) if user_id else (None,)):
-                genre = row['primary_genre'] if row['primary_genre'] else 'Unknown'
-                details[row['id']] = {
-                    'id': row['id'],
-                    'filename': row['file'],
-                    'title': row['title'] or 'Unknown Title',
-                    'artist': row['artist'] or 'Unknown Artist',
-                    'genre': genre,
-                    'color': get_color_for_genre(genre),
-                    'last_played': row['last_played']
-                }
+        cursor = conn.cursor()
+        query = """
+            SELECT f.id, f.file, f.title, f.artist,
+                   (SELECT g.label FROM genres g WHERE g.track_id = f.id ORDER BY g.score DESC LIMIT 1) as primary_genre,
+                   h.last_played
+            FROM features f
+            LEFT JOIN listening_history h ON f.id = h.track_id AND h.user_id = ?
+        """
+        for row in cursor.execute(query, (user_id,) if user_id else (None,)):
+            genre = row['primary_genre'] if row['primary_genre'] else 'Unknown'
+            details[row['id']] = {
+                'id': row['id'],
+                'filename': row['file'],
+                'title': row['title'] or 'Unknown Title',
+                'artist': row['artist'] or 'Unknown Artist',
+                'genre': genre,
+                'color': get_color_for_genre(genre),
+                'last_played': row['last_played']
+            }
     except Exception as e:
         print(f"DB Error fetching details: {e}")
+    finally:
+        if close_conn:
+            conn.close()
     return details
 
 # --- FastAPI App ---
@@ -112,8 +129,8 @@ class HistoryUpdate(BaseModel): track_id: int; user_id: str
 
 # --- Endpoints ---
 @app.get("/api/tracks", response_model=List[Track])
-def get_all_tracks(user_id: Optional[str] = None):
-    track_details = get_all_track_details(user_id=user_id)
+def get_all_tracks(user_id: Optional[str] = None, db: sqlite3.Connection = Depends(get_db)):
+    track_details = get_all_track_details(user_id=user_id, conn=db)
     if not track_details: raise HTTPException(status_code=404, detail="Треки не найдены.")
     return [Track(**details) for details in track_details.values()]
 
@@ -129,13 +146,13 @@ class SimilarTrackFull(BaseModel):
 
 
 @app.get("/api/similar/{track_id}")
-def get_similar_tracks(track_id: int, top_n: int = 15, metric: str = "cosine"):
+def get_similar_tracks(track_id: int, top_n: int = 15, metric: str = "cosine", db: sqlite3.Connection = Depends(get_db)):
     try:
         print(f"[DEBUG] Запрос похожих треков: track_id={track_id}, top_n={top_n}, metric={metric}")
         t0 = time.perf_counter()
 
         # шаг 1: вызов поиска, теперь возвращает (id, fname, dist)
-        similar_list_raw = find_similar_tracks(track_id, db_path=DB_PATH, top_n=top_n, metric=metric)
+        similar_list_raw = find_similar_tracks(track_id, conn=db, top_n=top_n, metric=metric)
         print(f"[TIMER] find_similar_tracks: {time.perf_counter() - t0:.3f} сек")
         print(f"[DEBUG] similar_list_raw={similar_list_raw}")
 
@@ -164,162 +181,152 @@ def get_similar_tracks(track_id: int, top_n: int = 15, metric: str = "cosine"):
 
 
 @app.post("/api/history/update")
-def update_history(item: HistoryUpdate):
+def update_history(item: HistoryUpdate, db: sqlite3.Connection = Depends(get_db)):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with _db_conn:
             cursor = conn.cursor()
             cursor.execute("INSERT INTO listening_history (user_id, track_id, last_played) VALUES (?, ?, ?) ON CONFLICT(user_id, track_id) DO UPDATE SET last_played=excluded.last_played;", (item.user_id, item.track_id, int(time.time())))
     except Exception as e: raise HTTPException(status_code=500, detail=f"Ошибка записи в историю: {e}")
     return {"status": "ok", "user_id": item.user_id}
 
 @app.get("/api/history/last", response_model=Optional[Track])
-def get_last_played(user_id: str):
+def get_last_played(user_id: str, db: sqlite3.Connection = Depends(get_db)):
     if not user_id: return None
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            query = """SELECT f.id, f.file, h.last_played, (SELECT g.label FROM genres g WHERE g.track_id = f.id ORDER BY g.score DESC LIMIT 1) as primary_genre FROM listening_history h JOIN features f ON f.id = h.track_id WHERE h.user_id = ? ORDER BY h.last_played DESC LIMIT 1;"""
-            row = cursor.execute(query, (user_id,)).fetchone()
-            if not row: return None
-            genre = row['primary_genre'] if row['primary_genre'] else 'Unknown'
-            track_details = { 'id': row['id'], 'filename': row['file'], 'genre': genre, 'color': get_color_for_genre(genre), 'last_played': row['last_played'] }
-            return Track(**track_details)
+        cursor = db.cursor()
+        query = """SELECT f.id, f.file, h.last_played, (SELECT g.label FROM genres g WHERE g.track_id = f.id ORDER BY g.score DESC LIMIT 1) as primary_genre FROM listening_history h JOIN features f ON f.id = h.track_id WHERE h.user_id = ? ORDER BY h.last_played DESC LIMIT 1;"""
+        row = cursor.execute(query, (user_id,)).fetchone()
+        if not row: return None
+        genre = row['primary_genre'] if row['primary_genre'] else 'Unknown'
+        track_details = { 'id': row['id'], 'filename': row['file'], 'genre': genre, 'color': get_color_for_genre(genre), 'last_played': row['last_played'] }
+        return Track(**track_details)
     except Exception as e: print(f"DB Error fetching last played: {e}")
     return None
 
 # --- NEW PLAYLIST ENDPOINTS ---
 @app.post("/api/playlists/create", response_model=Playlist)
-def create_playlist(playlist_data: PlaylistCreate):
+def create_playlist(playlist_data: PlaylistCreate, db: sqlite3.Connection = Depends(get_db)):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO playlists (user_id, name) VALUES (?, ?)", (playlist_data.user_id, playlist_data.name))
-            conn.commit()
-            return Playlist(id=cursor.lastrowid, user_id=playlist_data.user_id, name=playlist_data.name, track_count=0)
+        cursor = db.cursor()
+        cursor.execute("INSERT INTO playlists (user_id, name) VALUES (?, ?)", (playlist_data.user_id, playlist_data.name))
+        db.commit()
+        return Playlist(id=cursor.lastrowid, user_id=playlist_data.user_id, name=playlist_data.name, track_count=0)
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Плейлист с таким названием уже существует.")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Ошибка при создании плейлиста: {e}")
 
 @app.post("/api/playlists/add_track", response_model=PlaylistTrack)
-def add_track_to_playlist(data: PlaylistAddTrack):
+def add_track_to_playlist(data: PlaylistAddTrack, db: sqlite3.Connection = Depends(get_db)):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            # Проверяем, есть ли трек уже в плейлисте
-            cursor.execute("SELECT id FROM playlist_tracks WHERE playlist_id = ? AND track_id = ?", (data.playlist_id, data.track_id))
-            if cursor.fetchone():
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Трек уже в этом плейлисте.")
-            
-            # Определяем позицию
-            cursor.execute("SELECT MAX(position) FROM playlist_tracks WHERE playlist_id = ?", (data.playlist_id,))
-            max_pos = cursor.fetchone()[0]
-            new_pos = (max_pos + 1) if max_pos is not None else 0
+        # Проверяем, есть ли трек уже в плейлисте
+        cursor = db.cursor()
+        cursor.execute("SELECT id FROM playlist_tracks WHERE playlist_id = ? AND track_id = ?", (data.playlist_id, data.track_id))
+        if cursor.fetchone():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Трек уже в этом плейлисте.")
+        
+        # Определяем позицию
+        cursor.execute("SELECT MAX(position) FROM playlist_tracks WHERE playlist_id = ?", (data.playlist_id,))
+        max_pos = cursor.fetchone()[0]
+        new_pos = (max_pos + 1) if max_pos is not None else 0
 
-            cursor.execute("INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)", (data.playlist_id, data.track_id, new_pos))
-            conn.commit()
-            
-            # Получаем детали трека
-            all_details = get_all_track_details(user_id=data.user_id)
-            track_detail = all_details.get(data.track_id)
-            if not track_detail:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Трек не найден.")
-            
-            return PlaylistTrack(position=new_pos, **track_detail)
+        cursor.execute("INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)", (data.playlist_id, data.track_id, new_pos))
+        db.commit()
+        
+        # Получаем детали трека
+        all_details = get_all_track_details(user_id=data.user_id, conn=db)
+        track_detail = all_details.get(data.track_id)
+        if not track_detail:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Трек не найден.")
+        
+        return PlaylistTrack(position=new_pos, **track_detail)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Ошибка при добавлении трека в плейлист: {e}")
 
 @app.get("/api/playlists", response_model=List[Playlist])
-def get_user_playlists(user_id: str):
+def get_user_playlists(user_id: str, db: sqlite3.Connection = Depends(get_db)):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            query = """
-                SELECT p.id, p.name, p.user_id, COUNT(pt.track_id) as track_count
-                FROM playlists p
-                LEFT JOIN playlist_tracks pt ON p.id = pt.playlist_id
-                WHERE p.user_id = ?
-                GROUP BY p.id, p.name, p.user_id
-                ORDER BY p.name;
-            """
-            playlists = cursor.execute(query, (user_id,)).fetchall()
-            return [Playlist(**p) for p in playlists]
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Ошибка при получении плейлистов: {e}")
+        cursor = db.cursor()
+        query = """
+            SELECT p.id, p.name, p.user_id, COUNT(pt.track_id) as track_count
+            FROM playlists p
+            LEFT JOIN playlist_tracks pt ON p.id = pt.playlist_id
+            WHERE p.user_id = ?
+            GROUP BY p.id, p.name, p.user_id
+            ORDER BY p.name;
+        """
+        playlists = cursor.execute(query, (user_id,)).fetchall()
+        return [Playlist(**p) for p in playlists]
 
 @app.get("/api/playlists/{playlist_id}/tracks", response_model=List[PlaylistTrack])
-def get_playlist_tracks(playlist_id: int, user_id: Optional[str] = None):
+def get_playlist_tracks(playlist_id: int, user_id: Optional[str] = None, db: sqlite3.Connection = Depends(get_db)):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            # Проверяем принадлежность плейлиста пользователю
-            if user_id:
-                cursor.execute("SELECT user_id FROM playlists WHERE id = ?", (playlist_id,))
-                owner_id = cursor.fetchone()
-                if not owner_id or owner_id['user_id'] != user_id:
-                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Доступ запрещен или плейлист не найден.")
+        cursor = db.cursor()
+        # Проверяем принадлежность плейлиста пользователю
+        if user_id:
+            cursor.execute("SELECT user_id FROM playlists WHERE id = ?", (playlist_id,))
+            owner_id = cursor.fetchone()
+            if not owner_id or owner_id['user_id'] != user_id:
+                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Доступ запрещен или плейлист не найден.")
 
-            query = """
-                SELECT pt.position, f.id, f.file,
-                       (SELECT g.label FROM genres g WHERE g.track_id = f.id ORDER BY g.score DESC LIMIT 1) as primary_genre
-                FROM playlist_tracks pt
-                JOIN features f ON pt.track_id = f.id
-                WHERE pt.playlist_id = ?
-                ORDER BY pt.position;
-            """
-            tracks_raw = cursor.execute(query, (playlist_id,)).fetchall()
-            
-            all_details = get_all_track_details(user_id=user_id) # Для получения полных деталей, включая last_played/color
-            
-            playlist_tracks = []
-            for track_raw in tracks_raw:
-                full_track_detail = all_details.get(track_raw['id'])
-                if full_track_detail:
-                    playlist_tracks.append(PlaylistTrack(position=track_raw['position'], **full_track_detail))
-                else:
-                    # Если трек не найден в features (удален?), можно вернуть заглушку или пропустить
-                    pass
-            return playlist_tracks
+        query = """
+            SELECT pt.position, f.id, f.file,
+                   (SELECT g.label FROM genres g WHERE g.track_id = f.id ORDER BY g.score DESC LIMIT 1) as primary_genre
+            FROM playlist_tracks pt
+            JOIN features f ON pt.track_id = f.id
+            WHERE pt.playlist_id = ?
+            ORDER BY pt.position;
+        """
+        tracks_raw = cursor.execute(query, (playlist_id,)).fetchall()
+        
+        all_details = get_all_track_details(user_id=user_id, conn=db) # Для получения полных деталей, включая last_played/color
+        
+        playlist_tracks = []
+        for track_raw in tracks_raw:
+            full_track_detail = all_details.get(track_raw['id'])
+            if full_track_detail:
+                playlist_tracks.append(PlaylistTrack(position=track_raw['position'], **full_track_detail))
+            else:
+                # Если трек не найден в features (удален?), можно вернуть заглушку или пропустить
+                pass
+        return playlist_tracks
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Ошибка при получении треков плейлиста: {e}")
     
     
 
 @app.get("/api/tracks/{track_id}/cover")
+    
+    
 
-def get_track_cover(track_id: int):
+def get_track_cover(track_id: int, db: sqlite3.Connection = Depends(get_db)):
     """
     Возвращает обложку трека для отладки.
     Пока используем файл с расширением .jpg рядом с аудио.
     """
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            row = cursor.execute("SELECT file FROM features WHERE id = ?", (track_id,)).fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Трек не найден")
+        cursor = db.cursor()
+        row = cursor.execute("SELECT file FROM features WHERE id = ?", (track_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Трек не найден")
 
-            # Путь к аудио файлу
-            audio_file_path = os.path.join(os.path.dirname(__file__), '..', row['file'])
-            # Путь к картинке: меняем расширение на .jpg или ищем рядом с файлом
-            cover_file_path = os.path.splitext(audio_file_path)[0] + ".jpg"
+        # Путь к аудио файлу
+        audio_file_path = os.path.join(os.path.dirname(__file__), '..', row['file'])
+        # Путь к картинке: меняем расширение на .jpg или ищем рядом с файлом
+        cover_file_path = os.path.splitext(audio_file_path)[0] + ".jpg"
 
-            if not os.path.exists(cover_file_path):
-                # fallback: вернём заглушку
-                cover_file_path = os.path.join(os.path.dirname(__file__), '..', 'default-cover.png')
+        if not os.path.exists(cover_file_path):
+            # fallback: вернём заглушку
+            cover_file_path = os.path.join(os.path.dirname(__file__), '..', 'default-cover.png')
 
-            return FileResponse(cover_file_path)
+        return FileResponse(cover_file_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении обложки: {e}")
     
 import shutil
 
 @app.get("/api/tracks/{track_id}/save_cover_debug")
-def save_track_cover_debug(track_id: int):
+def save_track_cover_debug(track_id: int, db: sqlite3.Connection = Depends(get_db)):
     """
     Копирует обложку трека в папку debug_covers для проверки.
     """
@@ -327,40 +334,32 @@ def save_track_cover_debug(track_id: int):
         debug_dir = os.path.join(os.path.dirname(__file__), '..', 'debug_covers')
         os.makedirs(debug_dir, exist_ok=True)
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            row = cursor.execute("SELECT file FROM features WHERE id = ?", (track_id,)).fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Трек не найден")
+        cursor = db.cursor()
+        row = cursor.execute("SELECT file FROM features WHERE id = ?", (track_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Трек не найден")
 
-            audio_file_path = os.path.join(os.path.dirname(__file__), '..', row['file'])
-            cover_file_path = os.path.splitext(audio_file_path)[0] + ".jpg"
+        audio_file_path = os.path.join(os.path.dirname(__file__), '..', row['file'])
+        cover_file_path = os.path.splitext(audio_file_path)[0] + ".jpg"
 
-            if not os.path.exists(cover_file_path):
-                # fallback: используем заглушку
-                cover_file_path = os.path.join(os.path.dirname(__file__), '..', 'default-cover.png')
+        if not os.path.exists(cover_file_path):
+            # fallback: используем заглушку
+            cover_file_path = os.path.join(os.path.dirname(__file__), '..', 'default-cover.png')
 
-            dest_path = os.path.join(debug_dir, f"track_{track_id}.jpg")
-            shutil.copyfile(cover_file_path, dest_path)
+        dest_path = os.path.join(debug_dir, f"track_{track_id}.jpg")
+        shutil.copyfile(cover_file_path, dest_path)
 
         return {"status": "ok", "saved_to": dest_path}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении обложки: {e}")
 
 @app.get("/api/tracks/debug_list")
-def debug_list_tracks():
+def debug_list_tracks(db: sqlite3.Connection = Depends(get_db)):
     """
     Возвращает все треки из базы с их id и путями к файлам для проверки.
     """
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            rows = cursor.execute("SELECT id, file FROM features").fetchall()
-            if not rows:
-                return {"status": "empty", "tracks": []}
-            tracks = [{"id": row["id"], "file": row["file"]} for row in rows]
-            return {"status": "ok", "tracks": tracks}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при выборке треков: {e}")
+        cursor = db.cursor()
+        rows = cursor.execute("SELECT id, file FROM features").fetchall()
+        if not rows:
+            return {"status": "empty", "tracks": []}
+        tracks = [{"id": row["id"], "file": row["file"]} for row in rows]
+        return {"status": "ok", "tracks": tracks}

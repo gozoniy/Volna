@@ -95,9 +95,7 @@ def extract_genres(file_path, topn):
 
 # --- Работа с БД ---
 
-def init_db(db_path=None):
-    if db_path is None:
-        db_path = os.getenv("DATABASE_URL", "music_features.db")
+def init_db(conn):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("""
@@ -146,9 +144,7 @@ def get_title_artist(file_path):
     base = os.path.splitext(os.path.basename(file_path))[0]
     return base, ""
 
-def save_to_db(file_path, feats, genres, db_path=None):
-    if db_path is None:
-        db_path = os.getenv("DATABASE_URL", "music_features.db")
+def save_to_db(file_path, feats, genres, conn):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     title, artist = get_title_artist(file_path)
@@ -174,9 +170,7 @@ def save_to_db(file_path, feats, genres, db_path=None):
     conn.close()
 
 
-def get_all_files_from_db(db_path=None):
-    if db_path is None:
-        db_path = os.getenv("DATABASE_URL", "music_features.db")
+def get_all_files_from_db(conn):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("SELECT file FROM features")
@@ -185,25 +179,52 @@ def get_all_files_from_db(db_path=None):
     return [row[0] for row in rows]
 
 def scan_music_folder(folder_path=None, db_path=None):
+
     if folder_path is None:
+
         folder_path = os.getenv("MUSIC_FOLDER", "Yandex")
+
     if db_path is None:
+
         db_path = os.getenv("DATABASE_URL", "music_features.db")
-    init_db(db_path)
-    existing_files_in_db = get_all_files_from_db(db_path)
-    print(f"Найдено {len(existing_files_in_db)} треков в базе данных.")
-    
-    results = []
-    for root, dirs, files in os.walk(folder_path):
-        for f in files:
-            if f.lower().endswith((".mp3", ".wav", ".flac")):
-                file_path = os.path.join(root, f)
-                try:
-                    if is_duplicate(file_path, existing_files_in_db):
-                        continue
-                    feats = extract_audio_features(file_path)
-                    genres = extract_genres(file_path, topn=50)
-                    save_to_db(file_path, feats, genres, db_path)
+
+
+
+    conn = sqlite3.connect(db_path)
+
+    conn.row_factory = sqlite3.Row # Set row_factory here for consistency
+
+    try:
+
+                init_db(conn)
+
+                existing_files_in_db = get_all_files_from_db(conn)
+
+                print(f"Найдено {len(existing_files_in_db)} треков в базе данных.")
+
+            
+
+            results = []
+
+            for root, dirs, files in os.walk(folder_path):
+
+                for f in files:
+
+                    if f.lower().endswith((".mp3", ".wav", ".flac")):
+
+                        file_path = os.path.join(root, f)
+
+                        try:
+
+                            if is_duplicate(file_path, existing_files_in_db):
+
+                                continue
+
+                            feats = extract_audio_features(file_path)
+
+                            genres = extract_genres(file_path, topn=50)
+
+                            save_to_db(file_path, feats, genres, conn)
                     existing_files_in_db.append(file_path)
                     results.append((file_path, feats, genres))
                     print(f"Добавлено: {file_path}")
@@ -212,6 +233,8 @@ def scan_music_folder(folder_path=None, db_path=None):
                 except Exception as e:
                     print(f"Ошибка при обработке {file_path}: {e}")
     return results
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     scan_music_folder()
