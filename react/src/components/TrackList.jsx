@@ -1,11 +1,6 @@
 // react/src/components/TrackList.jsx
 import React, { useRef, useEffect, useState } from 'react';
 
-const formatTrackName = (filename) => {
-  if (!filename) return '';
-  return filename.split(/[/\\]/).pop();
-};
-
 const isColorDark = (color) => {
   if (!color) return false;
   let r, g, b;
@@ -100,7 +95,7 @@ export default function TrackList({ tracks, currentTrack, onTrackSelect, showLas
               <span className="track-color-dot" style={{ backgroundColor: track.color }}></span>
 
               <div className="track-item-info">
-                <span className="track-item-name">{formatTrackName(track.filename)}</span>
+                <span className="track-item-name">{track.artist} - {track.title}</span>
 
                 {showLastPlayed && track.last_played && (
                   <span className="track-item-last-played">

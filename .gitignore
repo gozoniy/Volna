@@ -105,6 +105,8 @@ Thumbs.db
 /models/
 /outputs/
 
+/mysql_data
+
 # NumPy data
 *.npy
 

@@ -7,13 +7,12 @@ const formatTrackName = (filename) => {
   return filename.split('\\').pop();
 };
 
-export default function PlaylistManager({ userId, onPlaylistTrackSelect, userPlaylists, onTriggerCreateNewPlaylist, fetchPlaylists }) {
+export default function PlaylistManager({ userId, userPlaylists, onTriggerCreateNewPlaylist, fetchPlaylists, onLoadPlaylist }) {
 
   // Функция, вызываемая при клике на карточку плейлиста
   const handlePlaylistCardClick = (playlistId) => {
-    // В данном контексте, "onPlaylistTrackSelect" из PlayerView используется для "открытия" плейлиста,
-    // то есть, он загружает треки этого плейлиста в основной плеер.
-    onPlaylistTrackSelect(playlistId); // PlayerView должен обработать это
+    // Теперь вызываем onLoadPlaylist для загрузки треков плейлиста
+    onLoadPlaylist(playlistId); 
   };
 
 

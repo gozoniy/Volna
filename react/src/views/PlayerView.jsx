@@ -160,294 +160,762 @@ function adjustColor(rgbColor) {
 
 export default function PlayerView({
 
+
+
   API_URL,
+
+
 
   userId,
 
+
+
   currentTrack,
+
+
 
   currentPlaylist,
 
+
+
   isPlaying,
+
+
 
   isLoading,
 
+
+
   audioRef,
+
+
 
   onTogglePlay,
 
+
+
   onNext,
+
+
 
   onPrev,
 
+
+
   onFindWave,
+
+
 
   onPlaylistTrackSelect,
 
+
+
   onAddTrackToPlaylist,
+
+
 
   onCreatePlaylist,
 
+
+
   fetchPlaylists,
+
+
 
   userPlaylists,
 
-    onColorChange,
 
-      activeColor,
 
-      theme
+  onColorChange,
 
-    }) {
+
+
+  activeColor,
+
+
+
+  theme,
+
+
+
+  onLoadPlaylist,
+
+
+
+  currentPlaylistInfo,
+
+
+
+  onCoverArtPositionChange // New prop
+
+
+
+}) {
+
+
 
       const [showAddTrackModal, setShowAddTrackModal] = useState(false);
 
+
+
       const [createMode, setCreateMode] = useState(false);
+
+
 
       const [coverArt, setCoverArt] = useState(theme === 'dark' ? '/default-music-cover-dark.png' : '/default-music-cover.png');
 
+
+
       const [previousCoverArt, setPreviousCoverArt] = useState(null);
+
+
 
       const [artKey, setArtKey] = useState(null);
 
-    
+
+
+
+
+
+
+      const coverArtRef = useRef(null); // Ref for the cover art image
+
+
+
+
+
+
 
       useEffect(() => {
 
+
+
         if (!currentTrack) {
+
+
 
           setCoverArt(theme === 'dark' ? '/default-music-cover-dark.png' : '/default-music-cover.png');
 
+
+
           onColorChange('#808080');
+
+
 
           return;
 
+
+
         }
 
+
+
     
+
+
 
         setPreviousCoverArt(coverArt);
 
+
+
     
+
+
 
         const trackUrl = `${API_URL}/audio/${currentTrack.filename.replace(/\\/g, '/')}`;
 
+
+
     
+
+
 
         jsmediatags.read(trackUrl, {
 
+
+
           onSuccess: (tag) => {
+
+
 
             const { picture } = tag.tags;
 
+
+
             if (picture) {
+
+
 
               let base64String = "";
 
+
+
               for (let i = 0; i < picture.data.length; i++) {
+
+
 
                 base64String += String.fromCharCode(picture.data[i]);
 
+
+
               }
+
+
 
               const artUrl = `data:${picture.format};base64,${window.btoa(base64String)}`;
 
+
+
               setCoverArt(artUrl);
 
+
+
               setArtKey(currentTrack.id);
+
+
 
               fac.getColorAsync(artUrl, { 
 
+
+
                   algorithm: 'dominant',
+
+
 
                   ignoredColor: [0, 0, 0, 255, 255, 255, 255] 
 
+
+
                 })
+
+
 
                  .then(color => {
 
+
+
                     const adjustedColor = adjustColor(color.value);
+
+
 
                     onColorChange(adjustedColor);
 
+
+
                  });
+
+
 
             } else {
 
+
+
               setCoverArt(theme === 'dark' ? '/default-music-cover-dark.png' : '/default-music-cover.png');
+
+
 
               setArtKey(currentTrack.id);
 
+
+
               onColorChange(currentTrack.color);
+
+
 
             }
 
+
+
           },
+
+
 
           onError: () => {
 
+
+
             setCoverArt(theme === 'dark' ? '/default-music-cover-dark.png' : '/default-music-cover.png');
+
+
 
             setArtKey(currentTrack.id);
 
+
+
             onColorChange(currentTrack.color);
+
+
 
           }
 
+
+
         });
+
+
 
       }, [currentTrack, theme]);
 
 
 
+
+
+
+
+      // Effect to report cover art position
+
+
+
+      useEffect(() => {
+
+
+
+        const updatePosition = () => {
+
+
+
+          if (coverArtRef.current && onCoverArtPositionChange) {
+
+
+
+            const rect = coverArtRef.current.getBoundingClientRect();
+
+
+
+            // Calculate center of the cover art for gradient origin
+
+
+
+            const x = rect.left + rect.width / 2;
+
+
+
+            const y = rect.top + rect.height; // Position under the cover art
+
+
+
+            onCoverArtPositionChange({ x, y });
+
+
+
+          }
+
+
+
+        };
+
+
+
+
+
+
+
+        // Update position initially and on window resize
+
+
+
+        updatePosition();
+
+
+
+        window.addEventListener('resize', updatePosition);
+
+
+
+        // Also update if currentTrack changes, as it might re-render and affect position
+
+
+
+        if (currentTrack) {
+
+
+
+          // Give some time for rendering to settle, or use a MutationObserver
+
+
+
+          const timeout = setTimeout(updatePosition, 100);
+
+
+
+          return () => clearTimeout(timeout);
+
+
+
+        }
+
+
+
+
+
+
+
+        return () => window.removeEventListener('resize', updatePosition);
+
+
+
+      }, [currentTrack, onCoverArtPositionChange]);
+
+
+
+
+
+
+
   const triggerAddTrackModal = (mode = false) => {
+
+
 
     setCreateMode(mode);
 
+
+
     setShowAddTrackModal(true);
+
+
 
   };
 
 
 
+
+
+
+
   return (
+
+
 
     <div className="view-container player-view player-with-playlists-view">
 
+
+
       <div className="player-top-section">
+
+
 
         <div className="player-main-area">
 
+
+
           <div className="player-artwork">
+
+
 
             <img src={previousCoverArt} alt="" className="artwork-image artwork-bottom" style={{ boxShadow: `0 0 35px 5px ${activeColor}50` }} />
 
-            <img key={artKey} src={coverArt} alt="" className="artwork-image artwork-top" style={{ boxShadow: `0 0 35px 5px ${activeColor}50` }} />
+
+
+            <img ref={coverArtRef} key={artKey} src={coverArt} alt="" className="artwork-image artwork-top" style={{ boxShadow: `0 0 35px 5px ${activeColor}50` }} />
+
+
 
           </div>
 
 
 
-                              <h2 className="player-track-title">{formatTrackName(currentTrack?.filename)}</h2>
+
+
+
+
+                              <h2 className="player-track-title">{currentTrack?.artist} - {currentTrack?.title}</h2>
+
+
+
+
 
 
 
                               <p className="player-artist-name">{currentTrack?.genre || 'Неизвестный жанр'}</p>
 
+
+
           
+
+
 
           <ProgressBar audioRef={audioRef} />
 
 
 
+
+
+
+
           <div className="player-controls-wrapper">
+
+
 
             <button onClick={onFindWave} className="control-button wave" disabled={isLoading}>Волна</button>
 
+
+
             <div className="player-controls">
+
+
 
               <button onClick={onPrev} className="control-button secondary" disabled={isLoading}><div className="icon-prev"></div></button>
 
+
+
               <button onClick={onTogglePlay} className="control-button play-pause" disabled={isLoading}><div className={isPlaying ? 'icon-pause' : 'icon-play'}></div></button>
+
+
 
               <button onClick={onNext} className="control-button secondary" disabled={isLoading}><div className="icon-next"></div></button>
 
-              
+
 
               
+
+
+
+              
+
+
 
             </div>
+
+
+
             <button 
+
+
 
                 onClick={() => triggerAddTrackModal(false)}
 
+
+
                 className="control-button add-to-playlist" 
+
+
 
                 disabled={!currentTrack || isLoading}
 
+
+
               >
+
+
 
                 +
 
+
+
               </button>
+
+
+
           </div>
+
+
 
         </div>
 
 
 
-        <div className="playlist-area">
 
-          <div className="playlist-header">
 
-            <h3>Текущий плейлист</h3>
 
-          </div>
 
-          <TrackList
+                <div className="playlist-area">
 
-            key={currentPlaylist.length > 0 ? currentPlaylist.map(t => t.id).join('-') : 'empty'}
 
-            tracks={currentPlaylist}
 
-            currentTrack={currentTrack}
 
-            onTrackSelect={onPlaylistTrackSelect}
 
-          />
 
-        </div>
+
+                  <div className="playlist-header">
+
+
+
+
+
+
+
+                    <h3>{currentPlaylistInfo.name}</h3>
+
+
+
+
+
+
+
+                  </div>
+
+
+
+
+
+
+
+                  <TrackList
+
+
+
+
+
+
+
+                    API_URL={API_URL}
+
+
+
+
+
+
+
+                    key={currentPlaylist.length > 0 ? currentPlaylist.map(t => t.id).join('-') : 'empty'}
+
+
+
+
+
+
+
+                    tracks={currentPlaylist}
+
+
+
+
+
+
+
+                    currentTrack={currentTrack}
+
+
+
+
+
+
+
+                    onTrackSelect={onPlaylistTrackSelect}
+
+
+
+
+
+
+
+                  />
+
+
+
+
+
+
+
+                </div>
+
+
 
       </div>
+
+
+
+
 
 
 
       <div className="playlists-manager-section">
 
-        <PlaylistManager 
 
-          userId={userId} 
 
-          onPlaylistTrackSelect={onPlaylistTrackSelect}
+                <PlaylistManager 
 
-          userPlaylists={userPlaylists}
 
-          onCreatePlaylist={onCreatePlaylist}
 
-          onTriggerCreateNewPlaylist={() => triggerAddTrackModal(true)}
+                  userId={userId} 
 
-          fetchPlaylists={fetchPlaylists}
 
-        />
+
+                  onPlaylistTrackSelect={onPlaylistTrackSelect}
+
+
+
+                  userPlaylists={userPlaylists}
+
+
+
+                  onCreatePlaylist={onCreatePlaylist}
+
+
+
+                  onTriggerCreateNewPlaylist={() => triggerAddTrackModal(true)}
+
+
+
+                  fetchPlaylists={fetchPlaylists}
+
+
+
+                  onLoadPlaylist={onLoadPlaylist} // Pass the new prop
+
+
+
+                />
+
+
 
       </div>
 
 
 
+
+
+
+
       <AddTrackModal
+
+
 
         show={showAddTrackModal}
 
+
+
         onClose={() => setShowAddTrackModal(false)}
+
+
 
         currentTrackId={currentTrack?.id}
 
+
+
         userId={userId}
+
+
 
         playlists={userPlaylists}
 
+
+
         onAddConfirm={onAddTrackToPlaylist}
+
+
 
         onCreatePlaylist={onCreatePlaylist}
 
+
+
         fetchPlaylists={fetchPlaylists}
+
+
 
         createMode={createMode}
 
+
+
       />
+
+
 
     </div>
 
+
+
   );
+
+
 
 }

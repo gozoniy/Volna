@@ -1,89 +1,87 @@
-import sqlite3
 import numpy as np
 import os
 import pandas as pd
 import time
 from dotenv import load_dotenv
+import pymysql
 
 load_dotenv()
 
-# --- вспомогательная функция для извлечения вектора признаков ---
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", 3306))
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASS = os.getenv("DB_PASS", "root")
+DB_NAME = os.getenv("DB_NAME", "music")
+
+# Global cache for all pre-computed data
+CACHED_DATA = {}
+
+def get_connection():
+    return pymysql.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASS,
+        database=DB_NAME,
+        charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor
+    )
+
 def get_feature_vector(row):
     return np.array([
-        row["bpm"],
-        row["rms_energy"],
-        row["spectral_centroid"],
-        row["spectral_bandwidth"],
-        row["spectral_rolloff"],
-        row["zero_crossing_rate"],
-        row["mfcc1"],
-        row["mfcc2"],
-        row["mfcc3"]
+        row["bpm"], row["rms_energy"], row["spectral_centroid"],
+        row["spectral_bandwidth"], row["spectral_rolloff"], row["zero_crossing_rate"],
+        row["mfcc1"], row["mfcc2"], row["mfcc3"]
     ], dtype=float)
 
-# --- читаем таблицу features ---
-def load_features(db_path=None):
-    if db_path is None:
-        db_path = os.getenv("DATABASE_URL", "music_features.db")
+def load_features():
     t0 = time.perf_counter()
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM features")
-    rows = cur.fetchall()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM features")
+            rows = cur.fetchall()
     print(f"[TIMER] load_features: {time.perf_counter() - t0:.3f} сек")
     return rows
 
-# --- читаем таблицу genres ---
-def load_genres(db_path=None):
-    if db_path is None:
-        db_path = os.getenv("DATABASE_URL", "music_features.db")
+def load_genres():
     t0 = time.perf_counter()
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM genres")
-    rows = cur.fetchall()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM genres")
+            rows = cur.fetchall()
     print(f"[TIMER] load_genres: {time.perf_counter() - t0:.3f} сек")
     return rows
 
-# --- строим жанровые векторы через Pandas ---
 def build_genre_matrix(features, genres):
     t0 = time.perf_counter()
     df = pd.DataFrame(genres)
-    df = df.rename(columns={0: "id", 1: "track_id", 2: "label", 3: "score"})
     pivot = df.pivot_table(index="track_id", columns="label", values="score", fill_value=0)
     all_labels = list(pivot.columns)
-
-    genre_vectors = {}
-    for f in features:
-        if f["id"] in pivot.index:
-            vec = pivot.loc[f["id"]].to_numpy(dtype=float)
-        else:
-            vec = np.zeros(len(all_labels))
-        genre_vectors[f["file"]] = vec
-
+    genre_vectors = {
+        f["file"]: pivot.loc[f["id"]].to_numpy(dtype=float) if f["id"] in pivot.index else np.zeros(len(all_labels))
+        for f in features
+    }
     print(f"[TIMER] build_genre_matrix: {time.perf_counter() - t0:.3f} сек")
     return genre_vectors, all_labels
 
-# --- поиск похожих треков через NumPy ---
-def find_similar_tracks(target_id, db_path=None, top_n=10, metric="cosine"):
-    if db_path is None:
-        db_path = os.getenv("DATABASE_URL", "music_features.db")
-    t0 = time.perf_counter()
-    features = load_features(db_path)
-    genres = load_genres(db_path)
-    print(f"[TIMER] загрузка данных: {time.perf_counter() - t0:.3f} сек")
+def precompute_data():
+    """
+    Loads all data from DB and pre-computes the vectors for similarity search.
+    This should be called once on application startup.
+    """
+    print("Начинаем предварительный расчет данных...")
+    t_start = time.perf_counter()
 
-    t1 = time.perf_counter()
-    genre_vectors, all_labels = build_genre_matrix(features, genres)
-    print(f"[TIMER] подготовка жанров: {time.perf_counter() - t1:.3f} сек")
+    features = load_features()
+    genres = load_genres()
+    print(f"[TIMER] загрузка данных: {time.perf_counter() - t_start:.3f} сек")
+
+    genre_vectors, _ = build_genre_matrix(features, genres)
 
     t2 = time.perf_counter()
     vectors = {r["id"]: get_feature_vector(r) for r in features}
     files = {r["id"]: r["file"] for r in features}
+    
     vectors_norm_list = [vectors[r['id']] for r in features]
     vectors_norm = np.array(vectors_norm_list)
     mean = vectors_norm.mean(axis=0)
@@ -98,18 +96,38 @@ def find_similar_tracks(target_id, db_path=None, top_n=10, metric="cosine"):
     ids = []
     for i, r in enumerate(features):
         feat_vec = vectors_norm[i] * weights
-        genre_vec = genre_vectors[r["file"]]
+        genre_vec = genre_vectors.get(r["file"], np.zeros_like(next(iter(genre_vectors.values())))) # Fallback for safety
         combined = np.concatenate([feat_vec, genre_vec * genre_weight])
         combined_vectors.append(combined.astype("float32"))
         ids.append(r["id"])
-    combined_vectors = np.array(combined_vectors, dtype="float32")
+    
+    # Store results in the global cache
+    CACHED_DATA["ids"] = np.array(ids)
+    CACHED_DATA["files"] = files
+    CACHED_DATA["combined_vectors"] = np.array(combined_vectors, dtype="float32")
+    
     print(f"[TIMER] сборка комбинированных векторов: {time.perf_counter() - t3:.3f} сек")
+    print(f"Предварительный расчет данных завершен за {time.perf_counter() - t_start:.3f} сек")
 
-    if target_id not in ids:
-        raise ValueError(f"Трек с ID {target_id} не найден в базе")
+def find_similar_tracks(target_id, top_n=10, metric="cosine"):
+    t0 = time.perf_counter()
 
-    target_idx = ids.index(target_id)
-    target_vec = combined_vectors[target_idx]
+    if not CACHED_DATA:
+        print("[WARN] Данные не были предварительно рассчитаны. Загрузка по требованию. Это будет медленно.")
+        precompute_data()
+
+    ids = CACHED_DATA["ids"]
+    files = CACHED_DATA["files"]
+    combined_vectors = CACHED_DATA["combined_vectors"]
+
+    try:
+        target_idx_arr = np.where(ids == target_id)[0]
+        if len(target_idx_arr) == 0:
+            raise ValueError(f"Трек с ID {target_id} не найден в кеше")
+        target_idx = target_idx_arr[0]
+        target_vec = combined_vectors[target_idx]
+    except (KeyError, IndexError):
+        raise ValueError(f"Трек с ID {target_id} не найден в кеше")
 
     t4 = time.perf_counter()
     if metric == "euclidean":
@@ -117,6 +135,7 @@ def find_similar_tracks(target_id, db_path=None, top_n=10, metric="cosine"):
     elif metric == "cosine":
         dot_products = combined_vectors @ target_vec
         norms = np.linalg.norm(combined_vectors, axis=1) * np.linalg.norm(target_vec)
+        norms[norms == 0] = 1e-8 # avoid division by zero
         dists = 1 - dot_products / norms
     else:
         raise ValueError("Неизвестная метрика")
@@ -124,15 +143,16 @@ def find_similar_tracks(target_id, db_path=None, top_n=10, metric="cosine"):
 
     dists[target_idx] = np.inf
     top_idx = np.argsort(dists)[:top_n]
+    
     similarities = [(ids[i], files[ids[i]], dists[i]) for i in top_idx]
-
+    print(f"[TIMER] find_similar_tracks (только поиск): {time.perf_counter() - t0:.3f} сек")
+    
     return similarities
 
-# --- запуск ---
 if __name__ == "__main__":
+    precompute_data()
     target_id = 14
     similar = find_similar_tracks(target_id, metric="cosine")
     print("Похожие треки:")
-    for f, d in similar:
-        abs_path = os.path.abspath(f).replace("\\", "/")
-        print(f"{abs_path} -> distance {d:.4f}")
+    for tid, f, d in similar:
+        print(f"{tid}: {f} -> distance {d:.4f}")
