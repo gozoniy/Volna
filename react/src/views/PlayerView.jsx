@@ -1,5 +1,5 @@
 // react/src/views/PlayerView.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import jsmediatags from 'jsmediatags';
 import { FastAverageColor } from 'fast-average-color';
 import ProgressBar from '../components/ProgressBar';
@@ -658,7 +658,10 @@ export default function PlayerView({
 
 
 
-              <button onClick={onTogglePlay} className="control-button play-pause" disabled={isLoading}><div className={isPlaying ? 'icon-pause' : 'icon-play'}></div></button>
+              <button onClick={onTogglePlay} className="control-button play-pause" disabled={isLoading}
+                style={activeColor ? { boxShadow: `0 0 15px 3px ${activeColor}80` } : {}}>
+                <div className={isPlaying ? 'icon-pause' : 'icon-play'}></div>
+              </button>
 
 
 

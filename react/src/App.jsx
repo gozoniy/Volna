@@ -34,6 +34,7 @@ function App() {
   const [showThemeTransition, setShowThemeTransition] = useState(false);
   const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0 });
   const [activeColor, setActiveColor] = useState(null);
+  const [coverArtPosition, setCoverArtPosition] = useState({ x: '50%', y: '0%' }); // New state for gradient origin
 
   const audioRef = useRef(null);
   const gradientTimeoutRef = useRef(null);
@@ -233,6 +234,10 @@ function App() {
                   }
                 }, [userId, fetchPlaylists]);
               
+                const handleCoverArtPositionChange = useCallback((position) => {
+                    setCoverArtPosition(position);
+                }, []);
+
                 const renderView = () => {
                   switch (activeView) {
                     case 'all-songs':
@@ -248,6 +253,7 @@ function App() {
                           onFindWave={simplifiedFindWave}
                           onLoadPlaylist={handleLoadPlaylist} // Pass the new handler
                           currentPlaylistInfo={currentPlaylistInfo} // Pass playlist info
+                          onCoverArtPositionChange={handleCoverArtPositionChange} // Pass the handler
                           onPlaylistTrackSelect={(track) => {
                             const index = currentPlaylist.findIndex(t => t.filename === track.filename);
                             if (index > -1) { setCurrentTrack(currentPlaylist[index]); setCurrentTrackIndex(index); simplifiedPlayTrack(track.filename, track.id); }
@@ -264,7 +270,8 @@ function App() {
                       );
                   }
                 };  return (
-    <div className={`App ${currentTrack ? 'track-active' : ''} ${isFading ? 'gradient-fading' : ''}`}>
+    <div className={`App ${currentTrack ? 'track-active' : ''} ${isFading ? 'gradient-fading' : ''}`}
+         style={{ '--gradient-origin': `${coverArtPosition.x}px ${coverArtPosition.y}px` }}>
       <div 
         className={`theme-transition-overlay ${showThemeTransition ? 'active' : ''}`}
         style={{

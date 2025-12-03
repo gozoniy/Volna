@@ -39,7 +39,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: radial-gradient(circle at 50% 0%, var(--primary-color) 0%, transparent 80%);
+  background-image: radial-gradient(circle at var(--gradient-origin, 50% 0%), var(--primary-color) 0%, transparent 80%);
   opacity: 0.4;
   z-index: 0;
   transition: all 1.2s ease-in-out;
@@ -151,14 +151,26 @@ body {
 .playlists-manager-section {
   flex-shrink: 0; /* Не сжимается */
   margin-top: 30px;
-  background: var(--glass-bg);
+  background-color: transparent; /* Explicitly set to transparent */
   backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--glass-border); /* This should be changing with theme */
   border-radius: var(--glass-radius);
   padding: 15px;
   overflow: hidden; /* Для скрытия переполнения */
 }
 
+.light-theme .playlists-manager-section {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)); /* Ensure backdrop-filter is also applied here explicitly */
+  border: 1px solid var(--glass-border);
+}
+
+/* For track-list-container */
+.light-theme .track-list-container {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)); /* Ensure backdrop-filter is also applied here explicitly */
+  border: 1px solid var(--glass-border);
+}
 
 .playlists-manager-section h3 {
   text-align: center;
@@ -285,11 +297,12 @@ body {
     transform: translateX(0);
   }
 }
+/* For track-list-container */
 .track-list-container {
   position: relative;
   height: 450px; /* Фиксированная высота */
   overflow-y: auto;
-  background: var(--glass-bg);
+  background-color: transparent; /* Explicitly set to transparent */
   backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
