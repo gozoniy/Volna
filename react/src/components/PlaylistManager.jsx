@@ -28,7 +28,10 @@ export default function PlaylistManager({
               <img src={playlist.last_track_cover_url || '/default-music-cover.png'} alt={playlist.name} />
             </div>
             <div className="playlist-card-content">
-              <h4>{playlist.name} ({playlist.track_count})</h4>
+              <div className="playlist-card-header">
+                <h4>{playlist.name} ({playlist.track_count})</h4>
+                {playlist.mood && <p className="playlist-mood">{playlist.mood}</p>}
+              </div>
               
               {playlist.preview_tracks && playlist.preview_tracks.length > 0 ? (
                 <ul className="playlist-card-tracks-preview">
@@ -38,8 +41,11 @@ export default function PlaylistManager({
                       className="playlist-card-tracks-preview-item"
                       onClick={(e) => handleTrackClick(e, playlist.id, track.id)}
                     >
-                      <span className="preview-item-title">{track.title}</span>
-                      <span className="preview-item-artist">{track.artist}</span>
+                      <img src={track.cover_url || '/default-music-cover-dark.png'} alt={track.title} className="playlist-preview-item-cover" />
+                      <div className="playlist-preview-item-info">
+                        <span className="preview-item-title">{track.title}</span>
+                        <span className="preview-item-artist">{track.artist}</span>
+                      </div>
                     </li>
                   ))}
                 </ul>

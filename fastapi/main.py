@@ -13,6 +13,7 @@ import pymysql
 import json
 
 from get_vector import *
+from playlist_specs import analyze_playlist
 # Add project root to sys.path to allow importing get_vector
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # from fastapi.get_vector import precompute_data
@@ -254,6 +255,7 @@ class PreviewTrack(BaseModel):
 class PlaylistWithPreview(Playlist):
     preview_tracks: List[PreviewTrack]
     last_track_cover_url: Optional[str] = None
+    mood: Optional[str] = None
 
 
 
@@ -529,7 +531,8 @@ def get_playlists(user_id: Optional[str] = None):
                             name=row["name"],
                             track_count=row["track_count"] or 0,
                             preview_tracks=preview_tracks,
-                            last_track_cover_url=last_track_cover_url
+                            last_track_cover_url=last_track_cover_url,
+                            mood=analyze_playlist(row["id"]) # Analyze and add mood
                         )
                     )
 
