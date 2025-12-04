@@ -11,9 +11,10 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import pymysql
 
+from get_vector import *
 # Add project root to sys.path to allow importing get_vector
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from get_vector import precompute_data
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# from fastapi.get_vector import precompute_data
 
 load_dotenv()
 
@@ -208,7 +209,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-app.mount("/audio", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "..")), name="audio")
+app.mount("/audio", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "audio")), name="audio")
 
 
 # -------------------------------------------------------------
@@ -483,13 +484,13 @@ class SimilarTrackFull(BaseModel):
     last_played: Optional[int] = None
 
 
-try:
-    from get_vector import find_similar_tracks
-except ImportError as e:
-    # Capture the error message for use in the replacement function
-    error_message = f"Failed to import find_similar_tracks from get_vector: {e}"
-    def find_similar_tracks(*args, **kwargs):
-        raise RuntimeError(error_message)
+# try:
+#     from fastapi.get_vector import find_similar_tracks
+# except ImportError as e:
+#     # Capture the error message for use in the replacement function
+#     error_message = f"Failed to import find_similar_tracks from get_vector: {e}"
+#     def find_similar_tracks(*args, **kwargs):
+#         raise RuntimeError(error_message)
 
 
 @app.get("/api/similar/{track_id}")

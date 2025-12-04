@@ -1,0 +1,12 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Data Handling
+numpy==1.26.4
+pandas
+
+# Environment variables
+python-dotenv
+pymysql

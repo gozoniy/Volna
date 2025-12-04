@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+# Устанавливаем системные зависимости (если нужны)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Рабочая директория
+WORKDIR /app
+
+# Копируем только requirements для кеша
+COPY requirements.txt .
+
+# Устанавливаем зависимости
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем код (в dev можно не копировать — будет volume)
+# COPY . .
+
+# Команда по умолчанию (в compose переопределим)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

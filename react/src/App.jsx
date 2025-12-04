@@ -66,6 +66,43 @@ function App() {
     }, 1000);
   }, []);
 
+  const updateGradientPosition = useCallback(() => {
+  const root = document.documentElement;
+
+  // Смещение за экран (центры градиентов)
+  const OUT_MIN = -30;   // чуть выше/левее экрана
+  const OUT_MAX = 130;   // чуть ниже/правее экрана
+
+  // Небольшой разброс внутри угла
+  const jitter = (base) => base + (Math.random() * 20 - 10); // ±10%
+
+  // Выбираем один из двух вариантов
+  const diagonal = Math.random() < 0.5 ? "TL_BR" : "TR_BL";
+
+  let x1, y1, x2, y2;
+
+  if (diagonal === "TL_BR") {
+    // Левый верхний → Правый нижний
+    x1 = jitter(OUT_MIN);
+    y1 = jitter(OUT_MIN);
+
+    x2 = jitter(OUT_MAX);
+    y2 = jitter(OUT_MAX);
+  } else {
+    // Правый верхний → Левый нижний
+    x1 = jitter(OUT_MAX);
+    y1 = jitter(OUT_MIN);
+
+    x2 = jitter(OUT_MIN);
+    y2 = jitter(OUT_MAX);
+  }
+
+  root.style.setProperty("--grad-pos-1-x", `${x1}%`);
+  root.style.setProperty("--grad-pos-1-y", `${y1}%`);
+  root.style.setProperty("--grad-pos-2-x", `${x2}%`);
+  root.style.setProperty("--grad-pos-2-y", `${y2}%`);
+}, []);
+
   const fetchPlaylists = useCallback(async () => {
     try {
       const response = await axios.get(`${API_URL}/api/playlists`);
@@ -81,15 +118,12 @@ function App() {
       setUserId(id);
   
       try {
-        // 1. Получаем последний проигранный трек
         const lastPlayedRes = await axios.get(`${API_URL}/api/history/last`, { 
           params: { user_id: id }
         }).catch(() => null);
   
-        let lastPlayedTrack = null;
         if (lastPlayedRes?.data) {
-          lastPlayedTrack = lastPlayedRes.data;
-          // Устанавливаем его сразу, чтобы пользователь что-то увидел
+          const lastPlayedTrack = lastPlayedRes.data;
           setCurrentTrack(lastPlayedTrack);
           setActiveColor(lastPlayedTrack.color);
           setCurrentPlaylist([lastPlayedTrack]);
@@ -99,17 +133,14 @@ function App() {
           }
         }
   
-        // 2. Параллельно получаем все ID треков и плейлисты
         await Promise.all([
           (async () => {
             const tracksIdsRes = await axios.get(`${API_URL}/api/tracks`).catch(() => null);
             if (tracksIdsRes?.data) {
-              // 3. Получаем детали для всех треков в фоне
               const allTrackDetails = await axios.post(`${API_URL}/api/tracks_by_ids`, {
                 track_ids: tracksIdsRes.data,
                 user_id: id
               }).catch(() => null);
-
               if (allTrackDetails?.data) {
                 setAllTracks(allTrackDetails.data);
               }
@@ -133,12 +164,13 @@ function App() {
     if (activeColor) {
       setIsFading(true);
       gradientTimeoutRef.current = setTimeout(() => {
+        updateGradientPosition();
         root.style.setProperty('--primary-color', activeColor);
         setIsFading(false);
       }, 400);
     }
     return () => { if (gradientTimeoutRef.current) clearTimeout(gradientTimeoutRef.current); };
-  }, [activeColor]);
+  }, [activeColor, updateGradientPosition]);
 
   const handleColorChange = useCallback((newColor) => {
     setActiveColor(newColor);
@@ -150,7 +182,22 @@ function App() {
     });
   }, []);
 
-  const simplifiedPlayTrack = (filename, trackId) => { if (audioRef.current) { const audioSrc = `${API_URL}/audio/${filename.replace(/\\/g, '/')}`; if (audioRef.current.src !== audioSrc) { audioRef.current.src = audioSrc; if (trackId && userId) { axios.post(`${API_URL}/api/history/update`, { track_id: trackId, user_id: userId }).catch(e => console.error("Ошибка истории", e)); } } const p = audioRef.current.play(); if (p) { p.then(() => setIsPlaying(true)).catch(() => setIsPlaying(false)); } } };
+  const simplifiedPlayTrack = useCallback((filename, trackId) => { 
+    if (audioRef.current) { 
+      const audioSrc = `${API_URL}/audio/${filename.replace(/\\/g, '/')}`; 
+      if (audioRef.current.src !== audioSrc) { 
+        audioRef.current.src = audioSrc; 
+        if (trackId && userId) { 
+          axios.post(`${API_URL}/api/history/update`, { track_id: trackId, user_id: userId }).catch(e => console.error("Ошибка истории", e)); 
+        }
+      } 
+      const p = audioRef.current.play(); 
+      if (p) { 
+        p.then(() => setIsPlaying(true)).catch(() => setIsPlaying(false)); 
+      } 
+    } 
+  }, [userId]);
+
   const simplifiedHandleSelect = (track) => { if (track && track.filename && !isLoading) { setCurrentTrack(track); setCurrentPlaylist([track]); setCurrentTrackIndex(0); simplifiedPlayTrack(track.filename, track.id); setActiveView('player'); } };
   const simplifiedFindWave = () => {
     if (currentTrack) {
@@ -187,7 +234,7 @@ function App() {
                 const response = await axios.get(`${API_URL}/api/playlists/${playlistId}/tracks`, {
                   params: { user_id: userId }
                 });
-                const { name, tracks } = response.data; // Destructure name and tracks
+                const { name, tracks } = response.data;
                 if (tracks.length > 0) {
                   setCurrentPlaylist(tracks);
                   setCurrentTrack(tracks[0]);
@@ -198,8 +245,8 @@ function App() {
                   setCurrentTrack(null);
                   setCurrentTrackIndex(-1);
                 }
-                setCurrentPlaylistInfo({ name: name, isWave: false }); // Update playlist info
-                setActiveView('player'); // Switch to player view when a playlist is loaded
+                setCurrentPlaylistInfo({ name: name, isWave: false });
+                setActiveView('player');
               } catch (error) {
                 console.error("Ошибка загрузки плейлиста:", error);
                 alert(error.response?.data?.detail || "Ошибка загрузки плейлиста");

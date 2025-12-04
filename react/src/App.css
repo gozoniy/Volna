@@ -39,8 +39,8 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: radial-gradient(circle at 20% 0%, var(--primary-color) 0%, transparent 60%),
-                    radial-gradient(circle at 80% 100%, var(--primary-color) 0%, transparent 60%);
+  background-image: radial-gradient(circle at var(--grad-pos-1-x, 20%) var(--grad-pos-1-y, -20%), var(--primary-color) 0%, transparent 80%),
+                    radial-gradient(circle at var(--grad-pos-2-x, 80%) var(--grad-pos-2-y, 150%), var(--primary-color) 0%, transparent 80%);
   opacity: 0.4;
   z-index: 0;
   transition: all 1.2s ease-in-out;
