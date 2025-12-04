@@ -16,5 +16,19 @@ export default defineConfig({
       usePolling: true,
       interval: 100,
     },
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/audio': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/covers': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    }
   },
 })

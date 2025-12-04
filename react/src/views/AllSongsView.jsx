@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import TrackList from '../components/TrackList'; // Импортируем новый компонент
 
-export default function AllSongsView({ allTracks, onTrackSelect, currentTrack }) {
+export default function AllSongsView({ API_URL, allTracks, onTrackSelect, currentTrack }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('default');
 
@@ -47,6 +47,7 @@ export default function AllSongsView({ allTracks, onTrackSelect, currentTrack })
       
       {/* Используем новый компонент TrackList */}
       <TrackList
+        API_URL={API_URL}
         tracks={sortedAndFilteredTracks}
         currentTrack={currentTrack}
         onTrackSelect={onTrackSelect}

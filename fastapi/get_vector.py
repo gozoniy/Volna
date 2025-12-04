@@ -4,6 +4,7 @@ import pandas as pd
 import time
 from dotenv import load_dotenv
 import pymysql
+import traceback
 
 load_dotenv()
 
@@ -54,6 +55,9 @@ def load_genres():
 
 def build_genre_matrix(features, genres):
     t0 = time.perf_counter()
+    if not genres:
+        print("[WARN] No genres found in database. Genre matrix will be empty.")
+        return {}, []
     df = pd.DataFrame(genres)
     pivot = df.pivot_table(index="track_id", columns="label", values="score", fill_value=0)
     all_labels = list(pivot.columns)
@@ -94,12 +98,32 @@ def precompute_data():
     genre_weight = 40.0
     combined_vectors = []
     ids = []
+    
+    # Handle case where there are no genres
+    if not genre_vectors:
+        print("[WARN] No genre vectors were built. Proceeding without genre information.")
+        fallback_genre_vec = np.array([])
+    else:
+        fallback_genre_vec = np.zeros_like(next(iter(genre_vectors.values())))
+
     for i, r in enumerate(features):
-        feat_vec = vectors_norm[i] * weights
-        genre_vec = genre_vectors.get(r["file"], np.zeros_like(next(iter(genre_vectors.values())))) # Fallback for safety
-        combined = np.concatenate([feat_vec, genre_vec * genre_weight])
-        combined_vectors.append(combined.astype("float32"))
-        ids.append(r["id"])
+        try:
+            feat_vec = vectors_norm[i] * weights
+            genre_vec = genre_vectors.get(r["file"], fallback_genre_vec)
+            
+            # Ensure genre_vec is not empty if fallback was used and genre_vectors was empty
+            if genre_vec.size == 0 and fallback_genre_vec.size > 0:
+                 genre_vec = fallback_genre_vec
+            
+            combined = np.concatenate([feat_vec, genre_vec * genre_weight])
+            combined_vectors.append(combined.astype("float32"))
+            ids.append(r["id"])
+        except Exception as e:
+            print(f"[WARN] Failed to process track ID {r.get('id', 'N/A')} during pre-computation: {e}")
+            traceback.print_exc()
+            # Optionally, remove it from 'files' as well if it won't be in the cache
+            if r.get('id') in files:
+                del files[r.get('id')]
     
     # Store results in the global cache
     CACHED_DATA["ids"] = np.array(ids)
@@ -145,9 +169,18 @@ def find_similar_tracks(target_id, top_n=10, metric="cosine"):
     top_idx = np.argsort(dists)[:top_n]
     
     similarities = [(ids[i], files[ids[i]], dists[i]) for i in top_idx]
+    
+    # Filter out non-finite values to prevent JSON serialization errors
+    final_similarities = []
+    for sid, fname, dist in similarities:
+        if np.isfinite(dist):
+            final_similarities.append((sid, fname, dist))
+        else:
+            print(f"[WARN] Skipping track ID {sid} from similar results due to non-finite distance.")
+            
     print(f"[TIMER] find_similar_tracks (только поиск): {time.perf_counter() - t0:.3f} сек")
     
-    return similarities
+    return final_similarities
 
 if __name__ == "__main__":
     precompute_data()

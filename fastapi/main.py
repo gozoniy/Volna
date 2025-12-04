@@ -10,6 +10,7 @@ from starlette.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import pymysql
+import json
 
 from get_vector import *
 # Add project root to sys.path to allow importing get_vector
@@ -26,6 +27,8 @@ DB_PORT = int(os.getenv("DB_PORT", 3306))
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "root")
 DB_NAME = os.getenv("DB_NAME", "music")
+
+API_BASE_URL = "http://127.0.0.1:8000"
 
 GENRE_COLORS = {
     ('rock', 'guitar', 'metal', 'punk'): '#E53935',
@@ -133,8 +136,7 @@ def get_track_details_by_ids(track_ids: List[int], user_id: Optional[str] = None
         placeholders = ', '.join(['%s'] * len(track_ids))
 
         query = f"""
-            SELECT f.id, f.file, f.title, f.artist,
-                   (SELECT g.label FROM genres g WHERE g.track_id = f.id ORDER BY g.score DESC LIMIT 1) AS primary_genre,
+            SELECT f.id, f.file, f.title, f.artist, f.primary_genre,
                    h.last_played
             FROM features f
             LEFT JOIN listening_history h ON h.track_id = f.id AND h.user_id = %s
@@ -145,17 +147,28 @@ def get_track_details_by_ids(track_ids: List[int], user_id: Optional[str] = None
 
         cursor.execute(query, params)
         rows = cursor.fetchall()
+        
+        covers_dir = os.path.join(os.path.dirname(__file__), "covers")
 
         for row in rows:
             genre = row["primary_genre"] or "Unknown"
-            details[row["id"]] = {
-                "id": row["id"],
+            track_id = row["id"]
+            
+            cover_url = None
+            if os.path.exists(os.path.join(covers_dir, f"{track_id}.jpg")):
+                cover_url = f"{API_BASE_URL}/covers/{track_id}.jpg"
+            elif os.path.exists(os.path.join(covers_dir, f"{track_id}.png")):
+                cover_url = f"{API_BASE_URL}/covers/{track_id}.png"
+
+            details[track_id] = {
+                "id": track_id,
                 "filename": row["file"],
                 "title": row["title"] or "Unknown",
                 "artist": row["artist"] or "Unknown",
                 "genre": genre,
                 "color": get_color_for_genre(genre),
-                "last_played": row["last_played"]
+                "last_played": row["last_played"],
+                "cover_url": cover_url
             }
             
     return details
@@ -210,6 +223,7 @@ app.add_middleware(
 )
 
 app.mount("/audio", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "audio")), name="audio")
+app.mount("/covers", StaticFiles(directory=os.path.join(os.path.dirname(__file__),"covers")), name="covers")
 
 
 # -------------------------------------------------------------
@@ -223,13 +237,24 @@ class Track(BaseModel):
     genre: str
     color: str
     last_played: Optional[int]
-
+    cover_url: Optional[str] = None
 
 class Playlist(BaseModel):
     id: int
     user_id: str
     name: str
     track_count: int
+
+class PreviewTrack(BaseModel):
+    id: int
+    title: str
+    artist: str
+    cover_url: Optional[str] = None
+
+class PlaylistWithPreview(Playlist):
+    preview_tracks: List[PreviewTrack]
+    last_track_cover_url: Optional[str] = None
+
 
 
 class PlaylistCreate(BaseModel):
@@ -319,9 +344,7 @@ def get_last_played(user_id: str):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT f.id, f.file, h.last_played,
-                   (SELECT g.label FROM genres g WHERE g.track_id = f.id ORDER BY g.score DESC LIMIT 1)
-                   AS primary_genre
+            SELECT f.id, f.file, f.title, f.artist, f.primary_genre, h.last_played
             FROM listening_history h
             JOIN features f ON f.id = h.track_id
             WHERE h.user_id = %s
@@ -334,15 +357,24 @@ def get_last_played(user_id: str):
             return None
 
         genre = row["primary_genre"] or "Unknown"
+        track_id = row["id"]
+        
+        cover_url = None
+        covers_dir = os.path.join(os.path.dirname(__file__), "covers")
+        if os.path.exists(os.path.join(covers_dir, f"{track_id}.jpg")):
+            cover_url = f"{API_BASE_URL}/covers/{track_id}.jpg"
+        elif os.path.exists(os.path.join(covers_dir, f"{track_id}.png")):
+            cover_url = f"{API_BASE_URL}/covers/{track_id}.png"
 
         return Track(
-            id=row["id"],
+            id=track_id,
             filename=row["file"],
-            title="Unknown",
-            artist="Unknown",
+            title=row["title"] or "Unknown",
+            artist=row["artist"] or "Unknown",
             genre=genre,
             color=get_color_for_genre(genre),
-            last_played=row["last_played"]
+            last_played=row["last_played"],
+            cover_url=cover_url
         )
 
 
@@ -425,42 +457,79 @@ from typing import List
 import traceback, sys
 
 
-
-@app.get("/api/playlists", response_model=List[Playlist])
+@app.get("/api/playlists", response_model=List[PlaylistWithPreview])
 def get_playlists(user_id: Optional[str] = None):
     try:
         with get_connection() as conn:
             with conn.cursor() as cursor:
                 query = """
-                    SELECT 
-                        p.id, 
-                        p.user_id, 
-                        p.name, 
-                        COUNT(pt.id) AS track_count
+                    WITH ranked_tracks AS (
+                        SELECT
+                            pt.playlist_id,
+                            f.id,
+                            COALESCE(f.title, 'Unknown Title') as title,
+                            COALESCE(f.artist, 'Unknown Artist') as artist,
+                            ROW_NUMBER() OVER(PARTITION BY pt.playlist_id ORDER BY pt.position) as rn
+                        FROM playlist_tracks pt
+                        JOIN features f ON pt.track_id = f.id
+                    )
+                    SELECT
+                        p.id,
+                        p.user_id,
+                        p.name,
+                        (SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id = p.id) as track_count,
+                        COALESCE(
+                            (SELECT
+                                JSON_ARRAYAGG(JSON_OBJECT('id', rt.id, 'title', rt.title, 'artist', rt.artist))
+                             FROM ranked_tracks rt
+                             WHERE rt.playlist_id = p.id AND rt.rn <= 4
+                            ), '[]') AS preview_tracks,
+                        (SELECT pt.track_id FROM playlist_tracks pt WHERE pt.playlist_id = p.id ORDER BY pt.id DESC LIMIT 1) as last_track_id
                     FROM playlists p
-                    LEFT JOIN playlist_tracks pt ON p.id = pt.playlist_id
+                    WHERE (%s IS NULL OR p.user_id = %s)
+                    GROUP BY p.id, p.user_id, p.name
+                    ORDER BY p.id;
                 """
-                
-                params = []
-                if user_id:
-                    query += " WHERE p.user_id = %s"
-                    params.append(user_id)
-
-                query += " GROUP BY p.id, p.user_id, p.name"
-
+                params = (user_id, user_id)
                 cursor.execute(query, params)
-                playlists = cursor.fetchall()
+                playlists_data = cursor.fetchall()
+                
+                covers_dir = os.path.join(os.path.dirname(__file__), "covers")
 
                 result = []
-                for row in playlists:
+                for row in playlists_data:
                     if row["id"] is None:
                         continue
+                    
+                    preview_tracks = json.loads(row.get('preview_tracks', '[]'))
+                    
+                    # Add cover_url to each preview track
+                    for track in preview_tracks:
+                        track_id = track['id']
+                        cover_url = None
+                        if os.path.exists(os.path.join(covers_dir, f"{track_id}.jpg")):
+                            cover_url = f"{API_BASE_URL}/covers/{track_id}.jpg"
+                        elif os.path.exists(os.path.join(covers_dir, f"{track_id}.png")):
+                            cover_url = f"{API_BASE_URL}/covers/{track_id}.png"
+                        track['cover_url'] = cover_url
+
+                    # Get cover for the last track in the playlist
+                    last_track_id = row.get('last_track_id')
+                    last_track_cover_url = None
+                    if last_track_id:
+                        if os.path.exists(os.path.join(covers_dir, f"{last_track_id}.jpg")):
+                            last_track_cover_url = f"{API_BASE_URL}/covers/{last_track_id}.jpg"
+                        elif os.path.exists(os.path.join(covers_dir, f"{last_track_id}.png")):
+                            last_track_cover_url = f"{API_BASE_URL}/covers/{last_track_id}.png"
+
                     result.append(
-                        Playlist(
+                        PlaylistWithPreview(
                             id=row["id"],
                             user_id=row["user_id"],
                             name=row["name"],
-                            track_count=row["track_count"] or 0
+                            track_count=row["track_count"] or 0,
+                            preview_tracks=preview_tracks,
+                            last_track_cover_url=last_track_cover_url
                         )
                     )
 
@@ -482,6 +551,7 @@ class SimilarTrackFull(BaseModel):
     genre: str
     color: str
     last_played: Optional[int] = None
+    cover_url: Optional[str] = None
 
 
 # try:
@@ -565,6 +635,74 @@ def get_playlist_tracks(playlist_id: int, user_id: Optional[str] = None):
         return PlaylistWithTracks(name=playlist_name, tracks=out_tracks)
 
 
+# -------------------------------------------------------------
+# SCAN ENDPOINTS
+# -------------------------------------------------------------
+import asyncio
+from fastapi import BackgroundTasks
+from scan import Scanner
+
+# Create a single scanner instance to manage state
+scanner = Scanner(music_folder="audio")
+scanner_task = None
+
+@app.post("/api/scan/start")
+async def start_scan():
+    global scanner, scanner_task
+
+    if scanner.status == "running":
+        raise HTTPException(status_code=409, detail="Scan is already in progress.")
+    
+    # If a previous scan finished, create a new scanner instance to start fresh
+    if scanner.status == "finished":
+        scanner = Scanner(music_folder="audio")
+
+    scanner_task = asyncio.create_task(scanner.run())
+    return {"message": "Scan started."}
+
+@app.post("/api/scan/pause")
+async def pause_scan():
+    if scanner.status != "running":
+        raise HTTPException(status_code=400, detail="No scan is currently running to pause.")
+    scanner.pause()
+    return {"message": "Scan paused."}
+
+@app.post("/api/scan/resume")
+async def resume_scan():
+    if scanner.status != "paused":
+        raise HTTPException(status_code=400, detail="Scan is not paused.")
+    scanner.resume()
+    return {"message": "Scan resumed."}
+
+@app.post("/api/scan/cancel")
+async def cancel_scan():
+    global scanner_task
+    if not scanner_task or scanner_task.done():
+        raise HTTPException(status_code=400, detail="No active scan to cancel.")
+    
+    scanner_task.cancel()
+    scanner.cancel()
+    scanner_task = None # Clear the task reference
+    
+    return {"message": "Scan has been cancelled."}
+    
+@app.post("/api/scan/clear")
+async def clear_library():
+    if scanner.status == "running" or scanner.status == "paused":
+        raise HTTPException(status_code=409, detail="Cannot clear library while a scan is in progress or paused.")
+    
+    try:
+        Scanner.clear_db()
+        # After clearing, it might be good to re-precompute data if needed
+        precompute_data()
+        return {"message": "Music library has been cleared."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear library: {str(e)}")
+
+
+@app.get("/api/scan/progress")
+async def get_scan_progress():
+    return scanner.get_progress()
 # -------------------------------------------------------------
 # TRACK COVER
 # -------------------------------------------------------------

@@ -105,6 +105,7 @@ Thumbs.db
 /models/
 /outputs/
 /fastapi/audio
+/fastapi/covers
 
 /mysql_data
 

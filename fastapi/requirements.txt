@@ -1,12 +1,22 @@
-# Web Framework
+# FastAPI backend
 fastapi
 uvicorn[standard]
 python-multipart
 
-# Data Handling
-numpy==1.26.4
-pandas
-
-# Environment variables
-python-dotenv
+# Database
 pymysql
+python-dotenv
+
+# Audio processing
+librosa
+numpy==1.26.4
+
+# ML models
+transformers
+torch==2.2.0+cpu
+torchaudio==2.2.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Utils
+pandas
+mutagen

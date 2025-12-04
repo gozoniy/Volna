@@ -5,6 +5,7 @@ import './App.css';
 import BottomNav from './layout/BottomNav';
 import PlayerView from './views/PlayerView';
 import AllSongsView from './views/AllSongsView';
+import SettingsView from './views/SettingsView';
 
 const API_URL = 'http://127.0.0.1:8000';
 
@@ -67,50 +68,34 @@ function App() {
   }, []);
 
   const updateGradientPosition = useCallback(() => {
-  const root = document.documentElement;
-
-  // Смещение за экран (центры градиентов)
-  const OUT_MIN = -30;   // чуть выше/левее экрана
-  const OUT_MAX = 130;   // чуть ниже/правее экрана
-
-  // Небольшой разброс внутри угла
-  const jitter = (base) => base + (Math.random() * 20 - 10); // ±10%
-
-  // Выбираем один из двух вариантов
-  const diagonal = Math.random() < 0.5 ? "TL_BR" : "TR_BL";
-
-  let x1, y1, x2, y2;
-
-  if (diagonal === "TL_BR") {
-    // Левый верхний → Правый нижний
-    x1 = jitter(OUT_MIN);
-    y1 = jitter(OUT_MIN);
-
-    x2 = jitter(OUT_MAX);
-    y2 = jitter(OUT_MAX);
-  } else {
-    // Правый верхний → Левый нижний
-    x1 = jitter(OUT_MAX);
-    y1 = jitter(OUT_MIN);
-
-    x2 = jitter(OUT_MIN);
-    y2 = jitter(OUT_MAX);
-  }
-
-  root.style.setProperty("--grad-pos-1-x", `${x1}%`);
-  root.style.setProperty("--grad-pos-1-y", `${y1}%`);
-  root.style.setProperty("--grad-pos-2-x", `${x2}%`);
-  root.style.setProperty("--grad-pos-2-y", `${y2}%`);
-}, []);
+    const root = document.documentElement;
+    const getRandomValue = (isLarge) => {
+      const range = isLarge ? [120, 150] : [-50, -20];
+      return Math.floor(Math.random() * (range[1] - range[0] + 1)) + range[0];
+    };
+    const corners = [[false, false], [true, false], [false, true], [true, true]];
+    let cornerIndex1 = Math.floor(Math.random() * 4);
+    let cornerIndex2 = Math.floor(Math.random() * 4);
+    while (cornerIndex1 === cornerIndex2) {
+      cornerIndex2 = Math.floor(Math.random() * 4);
+    }
+    const [x1_isLarge, y1_isLarge] = corners[cornerIndex1];
+    const [x2_isLarge, y2_isLarge] = corners[cornerIndex2];
+    root.style.setProperty('--grad-pos-1-x', `${getRandomValue(x1_isLarge)}%`);
+    root.style.setProperty('--grad-pos-1-y', `${getRandomValue(y1_isLarge)}%`);
+    root.style.setProperty('--grad-pos-2-x', `${getRandomValue(x2_isLarge)}%`);
+    root.style.setProperty('--grad-pos-2-y', `${getRandomValue(y2_isLarge)}%`);
+  }, []);
 
   const fetchPlaylists = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/playlists`);
+      // Pass user_id to get user-specific playlists if backend supports it
+      const response = await axios.get(`${API_URL}/api/playlists`, { params: { user_id: userId } });
       setUserPlaylists(response.data);
     } catch (error) {
       console.error("Ошибка загрузки плейлистов:", error);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -146,7 +131,8 @@ function App() {
               }
             }
           })(),
-          fetchPlaylists()
+          // Initial fetch is now dependent on userId being set.
+          // We call it separately in another useEffect.
         ]);
   
       } catch (error) {
@@ -155,7 +141,14 @@ function App() {
     };
   
     loadInitialData();
-  }, [fetchPlaylists]);
+  }, []);
+
+  // Effect to fetch playlists once userId is available
+  useEffect(() => {
+    if (userId) {
+      fetchPlaylists();
+    }
+  }, [userId, fetchPlaylists]);
   
   useEffect(() => {
     const root = document.documentElement;
@@ -211,112 +204,157 @@ function App() {
             artist: t.artist || 'Неизвестный исполнитель',
             genre: t.genre || 'Unknown',
             color: t.color || '#808080',
-            last_played: t.last_played
+            last_played: t.last_played,
+            cover_url: t.cover_url
           }));
           const p = [currentTrack, ...newTracks];
           setCurrentPlaylist(p);
-                    const i = p.findIndex(t => t.filename === currentTrack.filename);
-                    setCurrentTrackIndex(i >= 0 ? i : 0);
-                    setCurrentPlaylistInfo({ name: `Волна по треку: ${currentTrack.title}`, isWave: true });
-                  })
-                  .catch(e => console.error("Ошибка 'волны'", e))
-                  .finally(() => setIsLoading(false));
-              }
-            };
+          const i = p.findIndex(t => t.filename === currentTrack.filename);
+          setCurrentTrackIndex(i >= 0 ? i : 0);
+          setCurrentPlaylistInfo({ name: `Волна по треку: ${currentTrack.title}`, isWave: true });
+        })
+        .catch(e => console.error("Ошибка 'волны'", e))
+        .finally(() => setIsLoading(false));
+    }
+  };
             
-            const simplifiedTogglePlayPause = () => { if (currentTrack) { isPlaying ? audioRef.current.pause() : audioRef.current.play(); setIsPlaying(!isPlaying); } };
-            const simplifiedPlayNext = () => { if (currentPlaylist.length > 0) { const i = (currentTrackIndex + 1) % currentPlaylist.length; const t = currentPlaylist[i]; setCurrentTrack(t); setCurrentTrackIndex(i); simplifiedPlayTrack(t.filename, t.id); } };
-            const simplifiedPlayPrev = () => { if (currentPlaylist.length > 0) { const i = (currentTrackIndex - 1 + currentPlaylist.length) % currentPlaylist.length; const t = currentPlaylist[i]; setCurrentTrack(t); setCurrentTrackIndex(i); simplifiedPlayTrack(t.filename, t.id); } };
-          
-            const handleLoadPlaylist = useCallback(async (playlistId) => {
-              setIsLoading(true);
-              try {
-                const response = await axios.get(`${API_URL}/api/playlists/${playlistId}/tracks`, {
-                  params: { user_id: userId }
-                });
-                const { name, tracks } = response.data;
-                if (tracks.length > 0) {
-                  setCurrentPlaylist(tracks);
-                  setCurrentTrack(tracks[0]);
-                  setCurrentTrackIndex(0);
-                  simplifiedPlayTrack(tracks[0].filename, tracks[0].id);
-                } else {
-                  setCurrentPlaylist([]);
-                  setCurrentTrack(null);
-                  setCurrentTrackIndex(-1);
-                }
-                setCurrentPlaylistInfo({ name: name, isWave: false });
-                setActiveView('player');
-              } catch (error) {
-                console.error("Ошибка загрузки плейлиста:", error);
-                alert(error.response?.data?.detail || "Ошибка загрузки плейлиста");
-              } finally {
-                setIsLoading(false);
-              }
-            }, [userId, simplifiedPlayTrack]);
-          
-            const handleAddTrackToPlaylist = useCallback(async (playlistId, trackId) => {
-              if (!userId || !trackId || !playlistId) return;
-              try {
-                await axios.post(`${API_URL}/api/playlists/add_track`, { user_id: userId, playlist_id: playlistId, track_id: trackId });
-                fetchPlaylists(); 
-                return true;
-              } catch (error) {
-                console.error("Ошибка добавления трека в плейлист:", error);
-                alert(error.response?.data?.detail || "Ошибка добавления трека в плейлиста");
-                return false;
-              }
-            }, [userId, fetchPlaylists]);
-          
-                const handleCreatePlaylist = useCallback(async (playlistName) => {
-                  if (!userId || !playlistName.trim()) return null;
-                  try {
-                    const response = await axios.post(`${API_URL}/api/playlists/create`, { user_id: userId, name: playlistName });
-                    fetchPlaylists();
-                    return response.data.id;
-                  } catch (error){
-                    console.error("Ошибка создания плейлиста:", error);
-                    alert(error.response?.data?.detail || "Ошибка создания плейлиста");
-                    return null;
-                  }
-                }, [userId, fetchPlaylists]);
-              
-                const handleCoverArtPositionChange = useCallback((position) => {
-                    setCoverArtPosition(position);
-                }, []);
+  const simplifiedTogglePlayPause = () => { if (currentTrack) { isPlaying ? audioRef.current.pause() : audioRef.current.play(); setIsPlaying(!isPlaying); } };
+  const simplifiedPlayNext = () => { if (currentPlaylist.length > 0) { const i = (currentTrackIndex + 1) % currentPlaylist.length; const t = currentPlaylist[i]; setCurrentTrack(t); setCurrentTrackIndex(i); simplifiedPlayTrack(t.filename, t.id); } };
+  const simplifiedPlayPrev = () => { if (currentPlaylist.length > 0) { const i = (currentTrackIndex - 1 + currentPlaylist.length) % currentPlaylist.length; const t = currentPlaylist[i]; setCurrentTrack(t); setCurrentTrackIndex(i); simplifiedPlayTrack(t.filename, t.id); } };
+  
+  // Plays a specific track from a playlist
+  const handleLoadPlaylistFromTrack = useCallback(async (playlistId, trackId) => {
+    setIsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/playlists/${playlistId}/tracks`, { params: { user_id: userId } });
+      const { name, tracks } = response.data;
+      if (tracks.length > 0) {
+        const trackIndex = tracks.findIndex(t => t.id === trackId);
+        if (trackIndex !== -1) {
+          const selectedTrack = tracks[trackIndex];
+          setCurrentPlaylist(tracks);
+          setCurrentTrack(selectedTrack);
+          setCurrentTrackIndex(trackIndex);
+          simplifiedPlayTrack(selectedTrack.filename, selectedTrack.id);
+        } else {
+          // Fallback if track isn't in the playlist, play first track
+          setCurrentPlaylist(tracks);
+          setCurrentTrack(tracks[0]);
+          setCurrentTrackIndex(0);
+          simplifiedPlayTrack(tracks[0].filename, tracks[0].id);
+        }
+      } else {
+        setCurrentPlaylist([]);
+        setCurrentTrack(null);
+        setCurrentTrackIndex(-1);
+      }
+      setCurrentPlaylistInfo({ name: name, isWave: false });
+      setActiveView('player');
+    } catch (error) {
+      console.error("Error loading playlist from track:", error);
+      alert(error.response?.data?.detail || "Error loading playlist");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, simplifiedPlayTrack]);
 
-                const renderView = () => {
-                  switch (activeView) {
-                    case 'all-songs':
-                      return <AllSongsView allTracks={allTracks} onTrackSelect={simplifiedHandleSelect} currentTrack={currentTrack} />;
-                    default:
-                      return (
-                        <PlayerView
-                          API_URL={API_URL}
-                          userId={userId}
-                          currentTrack={currentTrack} currentPlaylist={currentPlaylist}
-                          isPlaying={isPlaying} isLoading={isLoading} audioRef={audioRef}
-                          onTogglePlay={simplifiedTogglePlayPause} onNext={simplifiedPlayNext} onPrev={simplifiedPlayPrev}
-                          onFindWave={simplifiedFindWave}
-                          onLoadPlaylist={handleLoadPlaylist} // Pass the new handler
-                          currentPlaylistInfo={currentPlaylistInfo} // Pass playlist info
-                          onCoverArtPositionChange={handleCoverArtPositionChange} // Pass the handler
-                          onPlaylistTrackSelect={(track) => {
-                            const index = currentPlaylist.findIndex(t => t.filename === track.filename);
-                            if (index > -1) { setCurrentTrack(currentPlaylist[index]); setCurrentTrackIndex(index); simplifiedPlayTrack(track.filename, track.id); }
-                          }}
-                          userPlaylists={userPlaylists}
-                          onAddTrackToPlaylist={handleAddTrackToPlaylist}
-                          onCreatePlaylist={handleCreatePlaylist}
-                          fetchPlaylists={fetchPlaylists}
-                          tracks={currentPlaylist}
-                          onColorChange={handleColorChange}
-                          activeColor={activeColor}
-                          theme={theme}
-                        />
-                      );
-                  }
-                };  return (
+  // Loads a playlist, but avoids interrupting playback if the current track is in it
+  const handleLoadPlaylist = useCallback(async (playlistId) => {
+    setIsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/playlists/${playlistId}/tracks`, { params: { user_id: userId } });
+      const { name, tracks } = response.data;
+      if (tracks.length > 0) {
+        const currentTrackInNewPlaylistIndex = currentTrack ? tracks.findIndex(t => t.id === currentTrack.id) : -1;
+        setCurrentPlaylist(tracks);
+        setCurrentPlaylistInfo({ name: name, isWave: false });
+        if (currentTrackInNewPlaylistIndex !== -1) {
+          setCurrentTrackIndex(currentTrackInNewPlaylistIndex);
+        } else {
+          setCurrentTrack(tracks[0]);
+          setCurrentTrackIndex(0);
+          simplifiedPlayTrack(tracks[0].filename, tracks[0].id);
+        }
+      } else {
+        setCurrentPlaylist([]);
+        setCurrentTrack(null);
+        setCurrentTrackIndex(-1);
+        setCurrentPlaylistInfo({ name: name, isWave: false });
+      }
+      setActiveView('player');
+    } catch (error) {
+      console.error("Error loading playlist:", error);
+      alert(error.response?.data?.detail || "Error loading playlist");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, simplifiedPlayTrack, currentTrack]);
+
+  const handleAddTrackToPlaylist = useCallback(async (playlistId, trackId) => {
+    if (!userId || !trackId || !playlistId) return;
+    try {
+      await axios.post(`${API_URL}/api/playlists/add_track`, { user_id: userId, playlist_id: playlistId, track_id: trackId });
+      fetchPlaylists(); 
+      return true;
+    } catch (error) {
+      console.error("Ошибка добавления трека в плейлист:", error);
+      alert(error.response?.data?.detail || "Ошибка добавления трека в плейлиста");
+      return false;
+    }
+  }, [userId, fetchPlaylists]);
+
+  const handleCreatePlaylist = useCallback(async (playlistName) => {
+    if (!userId || !playlistName.trim()) return null;
+    try {
+      const response = await axios.post(`${API_URL}/api/playlists/create`, { user_id: userId, name: playlistName });
+      fetchPlaylists();
+      return response.data.id;
+    } catch (error){
+      console.error("Ошибка создания плейлиста:", error);
+      alert(error.response?.data?.detail || "Ошибка создания плейлиста");
+      return null;
+    }
+  }, [userId, fetchPlaylists]);
+
+  const handleCoverArtPositionChange = useCallback((position) => {
+      setCoverArtPosition(position);
+  }, []);
+
+  const renderView = () => {
+    switch (activeView) {
+      case 'all-songs':
+        return <AllSongsView API_URL={API_URL} allTracks={allTracks} onTrackSelect={simplifiedHandleSelect} currentTrack={currentTrack} />;
+      case 'settings':
+        return <SettingsView />;
+      default:
+        return (
+          <PlayerView
+            API_URL={API_URL}
+            userId={userId}
+            currentTrack={currentTrack} currentPlaylist={currentPlaylist}
+            isPlaying={isPlaying} isLoading={isLoading} audioRef={audioRef}
+            onTogglePlay={simplifiedTogglePlayPause} onNext={simplifiedPlayNext} onPrev={simplifiedPlayPrev}
+            onFindWave={simplifiedFindWave}
+            onLoadPlaylist={handleLoadPlaylist}
+            onLoadPlaylistFromTrack={handleLoadPlaylistFromTrack} // Pass new handler
+            currentPlaylistInfo={currentPlaylistInfo}
+            onCoverArtPositionChange={handleCoverArtPositionChange}
+            onPlaylistTrackSelect={(track) => {
+              const index = currentPlaylist.findIndex(t => t.filename === track.filename);
+              if (index > -1) { setCurrentTrack(currentPlaylist[index]); setCurrentTrackIndex(index); simplifiedPlayTrack(track.filename, track.id); }
+            }}
+            userPlaylists={userPlaylists}
+            onAddTrackToPlaylist={handleAddTrackToPlaylist}
+            onCreatePlaylist={handleCreatePlaylist}
+            fetchPlaylists={fetchPlaylists}
+            tracks={currentPlaylist}
+            onColorChange={handleColorChange}
+            activeColor={activeColor}
+            theme={theme}
+          />
+        );
+    }
+  };  return (
     <div className={`App ${currentTrack ? 'track-active' : ''} ${isFading ? 'gradient-fading' : ''}`}
          style={{ '--gradient-origin': `${coverArtPosition.x}px ${coverArtPosition.y}px` }}>
       <div 

@@ -109,13 +109,21 @@ body {
   border-radius: 10px;
   transition: opacity 0.5s ease-in-out;
 }
+.track-item-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .track-item {
   padding: 10px 12px;
   border-radius: 8px; /* Slightly larger radius */
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 15px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
   margin-bottom: 4px; /* Space out items */
@@ -182,41 +190,123 @@ body {
 }
 .playlist-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* Автоматическая адаптация колонок */
-  gap: 15px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
 }
 .playlist-card {
-  background: rgba(255, 255, 255, 0.05); /* Легкий фон для карточек */
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   padding: 15px;
-  text-align: center;
+  display: flex;
+  flex-direction: row;
+  gap: 15px;
+  align-items: flex-start;
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Added shadow */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 .playlist-card:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: var(--primary-color);
+}
+.playlist-card-cover {
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.playlist-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.playlist-card-content {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  text-align: left;
+  min-width: 0; /* Prevents text overflow issues */
 }
 .playlist-card h4 {
   margin-top: 0;
   margin-bottom: 10px;
   color: var(--text-color);
   font-size: 1rem;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .playlist-card-tracks {
-  height: 60px; /* Фиксированная высота для превью */
-  background-color: rgba(0,0,0,0.2);
-  border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-color-secondary);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
+  flex-grow: 1;
 }
+
+.playlist-card-tracks-preview {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  position: relative;
+  max-height: 105px; /* Approx 3 items */
+  overflow: hidden;
+}
+
+.playlist-card-tracks-preview::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 25px;
+  background: linear-gradient(to bottom, transparent, rgba(30,30,30,1));
+}
+
+.playlist-card-tracks-preview-item {
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.playlist-card-tracks-preview-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.preview-item-title {
+  font-size: 0.9rem;
+  color: var(--text-color);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-item-artist {
+  font-size: 0.8rem;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .playlist-card.create-new-card {
   border-style: dashed;
   color: var(--text-color-secondary);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 .playlist-card.create-new-card h4 {
   color: var(--text-color-secondary);
@@ -415,7 +505,7 @@ body {
 .icon-prev { border-width: 8px 12px 8px 0; border-color: transparent var(--text-color-secondary) transparent transparent; }
 .icon-next { border-width: 8px 0 8px 12px; border-color: transparent transparent transparent var(--text-color-secondary); }
 .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottom-nav-height); background-color: var(--glass-bg); backdrop-filter: blur(var(--glass-blur)); border-top: 1px solid var(--glass-border); display: flex; justify-content: space-around; align-items: center; z-index: 1000; }
-.nav-button { background: none; border: none; color: var(--text-color-secondary); display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: color 0.2s, transform 0.2s; font-size: 0.7rem; }
+.nav-button { background: none; border: none; color: var(--text-color-secondary); display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: color 0.2s, transform 0.2s; font-size: 1rem; }
 .nav-button.active { color: var(--primary-color); }
 .nav-button:hover { color: var(--text-color); transform: translateY(-2px); }
 .track-list-full, .track-list-playlist { list-style: none; padding: 0; margin: 0; overflow-y: auto; }
@@ -458,4 +548,61 @@ body {
     width: 100%;
     margin-top: 20px;
   }
+}
+
+/* Settings View Styles */
+.settings-view {
+  padding: 20px;
+}
+.settings-section {
+  background: var(--glass-bg);
+  padding: 20px;
+  border-radius: var(--glass-radius);
+  border: 1px solid var(--glass-border);
+  margin-bottom: 20px;
+}
+.scan-controls {
+  display: flex;
+  gap: 15px;
+}
+.scan-button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+.scan-button:disabled {
+  background-color: var(--text-color-secondary);
+  cursor: not-allowed;
+}
+.progress-container {
+  margin-top: 20px;
+}
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  background-color: var(--border-color);
+  border-radius: 5px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+.progress-bar-filled {
+  height: 100%;
+  background-color: var(--primary-color);
+  transition: width 0.3s ease-in-out;
+}
+.current-file {
+  font-size: 0.8rem;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.error-message {
+  color: #E53935;
+  margin-top: 10px;
 }

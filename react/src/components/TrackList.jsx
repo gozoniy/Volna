@@ -21,7 +21,7 @@ const isColorDark = (color) => {
   return luminance < 0.5;
 };
 
-export default function TrackList({ tracks, currentTrack, onTrackSelect, showLastPlayed = false }) {
+export default function TrackList({ API_URL, tracks, currentTrack, onTrackSelect, showLastPlayed = false }) {
   const listRef = useRef(null);
   const highlightRef = useRef(null);
   const itemRefs = useRef(new Map());
@@ -92,6 +92,11 @@ export default function TrackList({ tracks, currentTrack, onTrackSelect, showLas
               onClick={() => onTrackSelect(track)}
               style={{ '--animation-order': animationOrder }}
             >
+              <img
+                src={track.cover_url || '/default-music-cover-dark.png'}
+                alt={track.title}
+                className="track-item-cover"
+              />
               <span className="track-color-dot" style={{ backgroundColor: track.color }}></span>
 
               <div className="track-item-info">

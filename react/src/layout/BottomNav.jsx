@@ -12,21 +12,21 @@ export default function BottomNav({ activeView, setActiveView }) {
         className={`nav-button ${activeView === 'player' ? 'active' : ''}`}
         onClick={() => setActiveView('player')}
       >
-        <PlayerIcon />
+        {/* <PlayerIcon /> */}
         <span>Плеер</span>
       </button>
       <button 
         className={`nav-button ${activeView === 'all-songs' ? 'active' : ''}`}
         onClick={() => setActiveView('all-songs')}
       >
-        <MusicIcon />
+        {/* <MusicIcon /> */}
         <span>Все песни</span>
       </button>
       <button 
-        className="nav-button"
-        onClick={() => alert('Настройки еще не реализованы!')}
+        className={`nav-button ${activeView === 'settings' ? 'active' : ''}`}
+        onClick={() => setActiveView('settings')}
       >
-        <SettingsIcon />
+        {/* <SettingsIcon /> */}
         <span>Настройки</span>
       </button>
     </nav>
