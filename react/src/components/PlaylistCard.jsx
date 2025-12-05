@@ -44,7 +44,14 @@ function hslToRgb(h, s, l) {
 
 const PlaylistCard = ({ playlist, onClick, onLoadFromTrack }) => {
   const [gradient, setGradient] = useState('linear-gradient(to bottom, rgba(26, 26, 26, 0.8), #000)');
+  const [isUpdating, setIsUpdating] = useState(false);
   const imageUrl = playlist.last_track_cover_url || '/default-music-cover.png';
+
+  useEffect(() => {
+    setIsUpdating(true);
+    const timer = setTimeout(() => setIsUpdating(false), 500); // Animation duration
+    return () => clearTimeout(timer);
+  }, [playlist.track_count]);
 
   useEffect(() => {
     if (imageUrl && !imageUrl.endsWith('/default-music-cover.png')) {
@@ -73,7 +80,7 @@ const PlaylistCard = ({ playlist, onClick, onLoadFromTrack }) => {
   };
 
   return (
-    <div className="playlist-card" style={{ background: gradient }} onClick={() => onClick(playlist.id)}>
+    <div className={`playlist-card ${isUpdating ? 'updating' : ''}`} style={{ background: gradient }} onClick={() => onClick(playlist.id)}>
       <div className="playlist-card-cover">
         <img
           src={imageUrl}
