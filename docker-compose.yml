@@ -25,6 +25,7 @@ services:
       PMA_PASSWORD: root
 
   backend:
+    restart: always
     build:
       context: ./fastapi
       dockerfile: Dockerfile
@@ -46,6 +47,7 @@ services:
       - mysql
 
   frontend:
+    restart: always
     image: node:20
     container_name: frontend
     working_dir: /app

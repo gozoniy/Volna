@@ -1,12 +1,11 @@
 // react/src/views/PlayerView.jsx
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FastAverageColor } from 'fast-average-color';
+import React, { useState, useEffect, useRef } from 'react';
 import ProgressBar from '../components/ProgressBar';
 import TrackList from '../components/TrackList';
 import PlaylistManager from '../components/PlaylistManager';
 import AddTrackModal from '../components/AddTrackModal';
 
-const fac = new FastAverageColor();
+import { getAverageColor } from '../utils/colorExtractor';
 
 function rgbToHsl(r, g, b) {
   r /= 255, g /= 255, b /= 255;
@@ -97,6 +96,7 @@ export default function PlayerView({
 
   const [topVisible, setTopVisible] = useState(false);
 
+  
   useEffect(() => {
       const defaultCover = theme === 'dark'
           ? '/default-music-cover-dark.png'
@@ -117,8 +117,8 @@ export default function PlayerView({
           setBottomArtSrc(newCover);
       }, 2000);
 
-      fac.getColorAsync(newCover, { algorithm: 'dominant', ignoredColor: [0,0,0,255,255,255,255] })
-          .then(color => onColorChange(adjustColor(color.value)))
+      getAverageColor(newCover)
+          .then(rgb => onColorChange(adjustColor(rgb)))
           .catch(() => onColorChange(currentTrack?.color || '#808080'));
   }, [currentTrack, theme, onColorChange]);
 
@@ -166,6 +166,9 @@ export default function PlayerView({
     setCreateMode(mode);
     setShowAddTrackModal(true);
   };
+  const shadowOpacity = theme === 'dark' ? '50' : '80';
+
+
 
 return (
   <div className="view-container player-view player-with-playlists-view">
@@ -181,13 +184,14 @@ return (
       alt=""
       className="artwork-image artwork-bottom"
       style={{
-        boxShadow: `0 0 35px 5px ${activeColor}50`,
+        boxShadow: `0 0 35px 5px ${activeColor}${shadowOpacity}`,
         width: '100%',
         height: '100%',
         position: 'absolute',
         top: 0,
         left: 0,
       }}
+
     />
   )}
 

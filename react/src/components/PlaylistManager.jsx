@@ -1,6 +1,7 @@
 // react/src/components/PlaylistManager.jsx
 
 import React from 'react';
+import PlaylistCard from './PlaylistCard';
 
 export default function PlaylistManager({
   userPlaylists,
@@ -13,49 +14,17 @@ export default function PlaylistManager({
     onLoadPlaylist(playlistId);
   };
 
-  const handleTrackClick = (e, playlistId, trackId) => {
-    e.stopPropagation();
-    onLoadPlaylistFromTrack(playlistId, trackId);
-  };
-
   return (
     <div className="playlist-manager-section">
       <h3>Мои плейлисты</h3>
       <div className="playlist-grid">
         {(userPlaylists || []).map(playlist => (
-          <div key={playlist.id} className="playlist-card" onClick={() => handlePlaylistCardClick(playlist.id)}>
-            <div className="playlist-card-cover">
-              <img src={playlist.last_track_cover_url || '/default-music-cover.png'} alt={playlist.name} />
-            </div>
-            <div className="playlist-card-content">
-              <div className="playlist-card-header">
-                <h4>{playlist.name} ({playlist.track_count})</h4>
-                {playlist.mood && <p className="playlist-mood">{playlist.mood}</p>}
-              </div>
-              
-              {playlist.preview_tracks && playlist.preview_tracks.length > 0 ? (
-                <ul className="playlist-card-tracks-preview">
-                  {playlist.preview_tracks.map(track => (
-                    <li 
-                      key={track.id} 
-                      className="playlist-card-tracks-preview-item"
-                      onClick={(e) => handleTrackClick(e, playlist.id, track.id)}
-                    >
-                      <img src={track.cover_url || '/default-music-cover-dark.png'} alt={track.title} className="playlist-preview-item-cover" />
-                      <div className="playlist-preview-item-info">
-                        <span className="preview-item-title">{track.title}</span>
-                        <span className="preview-item-artist">{track.artist}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="playlist-card-tracks">
-                  <p>Плейлист пуст</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <PlaylistCard 
+            key={playlist.id}
+            playlist={playlist}
+            onClick={handlePlaylistCardClick}
+            onLoadFromTrack={onLoadPlaylistFromTrack}
+          />
         ))}
         <div className="playlist-card create-new-card" onClick={onTriggerCreateNewPlaylist}>
           <h4>+ Создать новый</h4>

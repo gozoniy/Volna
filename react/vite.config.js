@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import path from 'path'
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -30,5 +35,13 @@ export default defineConfig({
         changeOrigin: true,
       },
     }
+  },
+  optimizeDeps: {
+    include: ['fast-average-color'],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/],
+    },
   },
 })
