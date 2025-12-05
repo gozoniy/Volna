@@ -48,11 +48,21 @@ function hslToRgb(h, s, l) {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
-function adjustColor(rgbColor) {
+function adjustColor(rgbColor, theme) {
     if (!rgbColor) return '#808080';
     const [h, s, l] = rgbToHsl(rgbColor[0], rgbColor[1], rgbColor[2]);
-    const adjustedL = Math.min(0.82, l + 0.2);
-    const adjustedS = s * 0.85;
+
+    let adjustedL = l;
+    let adjustedS = s;
+
+    if (theme === 'dark') {
+        adjustedL = Math.min(0.82, l + 0.2);
+        adjustedS = s * 0.85;
+    } else { // Light theme
+        adjustedL = Math.max(0.18, l - 0.2); // Make it darker for light theme shadow
+        adjustedS = Math.min(1, s * 1.1); // Boost saturation slightly
+    }
+
     const [r, g, b] = hslToRgb(h, adjustedS, adjustedL);
     const toHex = c => ('0' + c.toString(16)).slice(-2);
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
@@ -89,60 +99,38 @@ export default function PlayerView({
   // Simplified state for cover art
   const [topArtSrc, setTopArtSrc] = useState(theme === 'dark' ? '/default-music-cover-dark.png' : '/default-music-cover.png');
   const [bottomArtSrc, setBottomArtSrc] = useState(null);
-  const [artKey, setArtKey] = useState(0);
 
-  const coverArtRef = useRef(null);
-
-
-  const [topVisible, setTopVisible] = useState(false);
+    const coverArtRef = useRef(null);
 
   
-  useEffect(() => {
-      const defaultCover = theme === 'dark'
-          ? '/default-music-cover-dark.png'
-          : '/default-music-cover.png';
-      const newCover = currentTrack?.cover_url || defaultCover;
 
-      // 1. Сначала скрываем верхнюю обложку
-      setTopVisible(false);
+  
 
-      // 2. Через маленький timeout меняем src и делаем fade-in
-      setTimeout(() => {
-          setTopArtSrc(newCover);
-          setTopVisible(true);
-      }, 50); // 50ms достаточно, чтобы браузер отрендерил opacity=0
+        const [topVisible, setTopVisible] = useState(false);
 
-      // 3. Обновляем нижнюю обложку после завершения анимации
-      setTimeout(() => {
-          setBottomArtSrc(newCover);
-      }, 2000);
+  
 
-      getAverageColor(newCover)
-          .then(rgb => onColorChange(adjustColor(rgb)))
-          .catch(() => onColorChange(currentTrack?.color || '#808080'));
-  }, [currentTrack, theme, onColorChange]);
+    
 
-  useEffect(() => {
+    useEffect(() => {
     const defaultCover = theme === 'dark' ? '/default-music-cover-dark.png' : '/default-music-cover.png';
     const newCover = currentTrack?.cover_url || defaultCover;
 
-    if (newCover === bottomArtSrc) return; // если та же обложка, ничего не делаем
+    if (newCover === topArtSrc) return;
 
-    // ставим новый src на верхний слой, скрытый
     setTopArtSrc(newCover);
-    setTopVisible(false);
-  }, [currentTrack, theme]);
-
-  // Когда верхний слой загружен, запускаем fade-in
-  const handleTopLoad = () => {
     setTopVisible(true);
-    // через время анимации обновляем нижний слой
+
+    const animationDuration = 500; // Corresponds to the CSS transition duration
     setTimeout(() => {
-      setBottomArtSrc(topArtSrc);
-      setTopArtSrc(null); // очищаем верхний слой
-      setTopVisible(false);
-    }, 2000); // совпадает с transition-duration в CSS
-  };
+      setBottomArtSrc(newCover);
+    }, animationDuration);
+
+    getAverageColor(newCover)
+      .then(rgb => onColorChange(adjustColor(rgb, theme)))
+      .catch(() => onColorChange(currentTrack?.color || '#808080'));
+      
+  }, [currentTrack, theme, onColorChange]);
 
   useEffect(() => {
     const updatePosition = () => {
@@ -201,7 +189,6 @@ return (
       src={topArtSrc}
       alt=""
       className={`artwork-image artwork-top ${topVisible ? 'visible' : ''}`}
-      onLoad={handleTopLoad}
       style={{
         width: '100%',
         height: '100%',
