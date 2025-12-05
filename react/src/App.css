@@ -18,6 +18,8 @@
   --placeholder-bg: #2a2a2a;
 }
 
+
+
 body {
   margin: 0;
   font-family: var(--font-family);
@@ -513,12 +515,26 @@ body {
 }
 
 .modal-content {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  padding: 20px;
   width: 100%;
-  /* растягиваем по ширине */
-  max-width: 600px;
-  /* можно ограничить */
-  border-radius: 12px 12px 0 0;
-  /* скругляем только верх */
+  max-width: 500px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  animation: modal-fade-in 0.3s ease-out;
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .modal-content h4 {
@@ -527,13 +543,18 @@ body {
 }
 
 .modal-content input {
-  width: calc(100% - 20px);
+  width: calc(100% - 22px);
   padding: 10px;
   margin-bottom: 15px;
+  border: 1px solid var(--glass-border);
+  border-radius: 15px;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1rem;
+}
+
+.light-theme .modal-content input {
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
 }
 
 .modal-actions button {
@@ -541,9 +562,14 @@ body {
   color: #fff;
   border: none;
   padding: 10px 15px;
-  border-radius: 8px;
+  border-radius: 15px;
   cursor: pointer;
   margin: 0 5px;
+  transition: background-color 0.2s;
+}
+
+.modal-actions button:hover {
+  filter: brightness(1.2);
 }
 
 .playlist-selection {
@@ -556,27 +582,42 @@ body {
 }
 
 .playlist-selection button {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-color);
   border: 1px solid var(--glass-border);
-  padding: 8px 12px;
+  padding: 10px;
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
   width: 100%;
-  /* Занимает всю ширину */
+  transition: background-color 0.2s;
 }
 
 .playlist-selection button:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.light-theme .playlist-selection button {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.light-theme .playlist-selection button:hover {
+  background-color: rgba(0, 0, 0, 0.1);
 }
 
 .create-new-text {
   color: var(--primary-color);
   cursor: pointer;
-  text-decoration: underline;
+  text-align: center;
   margin-top: 15px;
+  transition: all 0.2s ease-in-out;
 }
+.create-new-text:hover{
+  border-color: var(--primary-color);
+  transform: scale(1.05);
+  
+}
+
 
 .close-button {
   position: absolute;
