@@ -1017,11 +1017,17 @@ body {
   padding: 12px 15px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  background-color: #2a2a2a;
+  background-color: var(--card-color);
   color: var(--text-color);
   box-sizing: border-box;
   font-size: 1rem;
   margin-top: 10px;
+}
+
+.light-theme .search-input {
+  background-color: var(--card-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
 }
 
 .sort-controls {
@@ -1037,13 +1043,19 @@ body {
 }
 
 .sort-controls button {
-  background-color: #333;
+  background-color: var(--card-color);
   color: var(--text-color);
   border: none;
   padding: 5px 10px;
   border-radius: 15px;
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.light-theme .sort-controls button {
+  background-color: var(--card-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
 }
 
 .sort-controls button.active {

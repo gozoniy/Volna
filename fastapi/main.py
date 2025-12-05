@@ -296,10 +296,28 @@ def api_get_tracks_by_ids(request: TracksByIdsRequest):
     if not data:
         raise HTTPException(404, "Треки не найдены")
 
-    # Сортировка результата в том же порядке, что и track_ids
-    sorted_tracks = sorted(data.values(), key=lambda track: request.track_ids.index(track['id']))
-    
     return list(map(Track.parse_obj, sorted_tracks))
+
+@app.get("/api/tracks/search", response_model=List[Track])
+def search_tracks(q: str, user_id: Optional[str] = None):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        search_query = f"%{q}%"
+        cursor.execute("""
+            SELECT id FROM features
+            WHERE title LIKE %s OR artist LIKE %s
+            LIMIT 50
+        """, (search_query, search_query))
+
+        rows = cursor.fetchall()
+        track_ids = [r["id"] for r in rows]
+        
+        if not track_ids:
+            return []
+            
+        all_details = get_track_details_by_ids(track_ids, user_id)
+
+        return list(all_details.values())
 
 
 # -------------------------------------------------------------
@@ -378,6 +396,30 @@ def get_last_played(user_id: str):
             last_played=row["last_played"],
             cover_url=cover_url
         )
+
+@app.get("/api/history/all", response_model=List[Track])
+def get_all_history(user_id: str, page: int = 1, page_size: int = 50):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        offset = (page - 1) * page_size
+        cursor.execute("""
+            SELECT f.id
+            FROM listening_history h
+            JOIN features f ON f.id = h.track_id
+            WHERE h.user_id = %s
+            ORDER BY h.last_played DESC
+            LIMIT %s OFFSET %s
+        """, (user_id, page_size, offset))
+
+        rows = cursor.fetchall()
+        track_ids = [r["id"] for r in rows]
+        all_details = get_track_details_by_ids(track_ids, user_id)
+
+        # Сортировка результата в том же порядке, что и track_ids
+        sorted_tracks = sorted(all_details.values(), key=lambda track: track_ids.index(track['id']))
+    
+        return list(map(Track.parse_obj, sorted_tracks))
+
 
 
 # -------------------------------------------------------------

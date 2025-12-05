@@ -323,7 +323,7 @@ function App() {
   const renderView = () => {
     switch (activeView) {
       case 'all-songs':
-        return <AllSongsView API_URL={API_URL} allTracks={allTracks} onTrackSelect={simplifiedHandleSelect} currentTrack={currentTrack} />;
+        return <AllSongsView API_URL={API_URL} userId={userId} onTrackSelect={simplifiedHandleSelect} currentTrack={currentTrack} />;
       case 'settings':
         return <SettingsView />;
       default:
