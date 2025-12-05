@@ -733,8 +733,8 @@ body {
 }
 
 .like-button svg {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   fill: var(--text-color-secondary);
   transition: all 0.2s ease;
 }
@@ -742,6 +742,22 @@ body {
 .like-button:hover svg {
   fill: var(--primary-color);
   transform: scale(1.1);
+}
+
+@keyframes puff {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.like-button.liked svg {
+  animation: puff 0.5s ease-in-out;
 }
 
 .custom-progress-track {

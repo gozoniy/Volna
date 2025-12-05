@@ -95,6 +95,7 @@ export default function PlayerView({
 }) {
   const [showAddTrackModal, setShowAddTrackModal] = useState(false);
   const [createMode, setCreateMode] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
   
   // Simplified state for cover art
   const [topArtSrc, setTopArtSrc] = useState(theme === 'dark' ? '/default-music-cover-dark.png' : '/default-music-cover.png');
@@ -157,6 +158,9 @@ export default function PlayerView({
 
   const handleLike = async () => {
     if (!currentTrack) return;
+
+    setIsLiked(true);
+    setTimeout(() => setIsLiked(false), 500); // Reset after animation
 
     let likedPlaylist = userPlaylists.find(p => p.name === 'Мне нравится');
 
@@ -294,7 +298,7 @@ return (
           <div className="player-controls-right">
             <button
               onClick={handleLike}
-              className="control-button like-button"
+              className={`control-button like-button ${isLiked ? 'liked' : ''}`}
               disabled={!currentTrack || isLoading}
             >
               <svg viewBox="0 0 24 24">
