@@ -512,6 +512,14 @@ body {
   justify-content: center;
   align-items: center;
   z-index: 2000;
+  opacity: 0; /* Initial state for animation */
+  transition: opacity 0.3s ease-in-out; /* Animation */
+  pointer-events: none; /* Make it non-interactive when hidden */
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: all; /* Make it interactive when active */
 }
 
 .modal-content {

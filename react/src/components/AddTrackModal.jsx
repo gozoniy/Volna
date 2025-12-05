@@ -13,7 +13,7 @@ export default function AddTrackModal({ show, onClose, currentTrackId, userId, p
     setCurrentMode(initialCreateMode || false);
   }, [initialCreateMode]);
 
-  if (!show || !currentTrackId || !userId) return null;
+  if (!currentTrackId || !userId) return null; // Still need trackId and userId to function
 
   // Функция для создания плейлиста, вызываемая из модального окна
   const handleCreateNewPlaylist = async () => {
@@ -43,42 +43,44 @@ export default function AddTrackModal({ show, onClose, currentTrackId, userId, p
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <h4>{currentMode ? 'Создать новый плейлист' : 'Добавить трек в плейлист'}</h4>
-        
-        {currentMode ? (
-          <div className="create-playlist-form">
-            <input
-              type="text"
-              placeholder="Название плейлиста"
-              value={newPlaylistName}
-              onChange={e => setNewPlaylistName(e.target.value)}
-            />
-            <div className="modal-actions">
-              <button onClick={handleCreateNewPlaylist}>Создать и добавить</button>
-              <button onClick={() => setCurrentMode(false)}>Назад</button>
+    <div className={`modal-overlay ${show ? 'active' : ''}`} onClick={onClose}>
+      {show && ( // Conditionally render modal-content for its animation
+        <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <h4>{currentMode ? 'Создать новый плейлист' : 'Добавить трек в плейлист'}</h4>
+          
+          {currentMode ? (
+            <div className="create-playlist-form">
+              <input
+                type="text"
+                placeholder="Название плейлиста"
+                value={newPlaylistName}
+                onChange={e => setNewPlaylistName(e.target.value)}
+              />
+              <div className="modal-actions">
+                <button onClick={handleCreateNewPlaylist}>Создать и добавить</button>
+                <button onClick={() => setCurrentMode(false)}>Назад</button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <>
-            <div className="playlist-selection">
-              {(playlists || []).map(playlist => (
-                <button key={playlist.id} onClick={() => handleAddTrackToExisting(playlist.id)}>
-                  {playlist.name}
-                </button>
-              ))}
-            </div>
-            <p className="create-new-text" onClick={() => setCurrentMode(true)}>
-              Создать новый плейлист
-            </p>
-            <div className="modal-actions">
-                <button onClick={onClose}>Отмена</button>
-            </div>
-          </>
-        )}
-        <button className="close-button" onClick={onClose}>✖</button>
-      </div>
+          ) : (
+            <>
+              <div className="playlist-selection">
+                {(playlists || []).map(playlist => (
+                  <button key={playlist.id} onClick={() => handleAddTrackToExisting(playlist.id)}>
+                    {playlist.name}
+                  </button>
+                ))}
+              </div>
+              <p className="create-new-text" onClick={() => setCurrentMode(true)}>
+                Создать новый плейлист
+              </p>
+              <div className="modal-actions">
+                  <button onClick={onClose}>Отмена</button>
+              </div>
+            </>
+          )}
+          <button className="close-button" onClick={onClose}>✖</button>
+        </div>
+      )}
     </div>
   );
 }
