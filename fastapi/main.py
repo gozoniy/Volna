@@ -570,7 +570,7 @@ class SimilarTrackFull(BaseModel):
 def api_get_similar_tracks(track_id: int, user_id: Optional[str] = None, top_n: int = 15, metric: str = "cosine"):
     try:
         # 1. Найти похожие треки
-        similar_list_raw = find_similar_tracks(track_id, top_n=top_n, metric=metric)
+        similar_list_raw = find_similar_tracks(track_id, user_id=user_id, top_n=top_n, metric=metric)
 
         if not similar_list_raw:
             return []

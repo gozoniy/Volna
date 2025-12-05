@@ -133,7 +133,7 @@ def precompute_data():
     print(f"[TIMER] сборка комбинированных векторов: {time.perf_counter() - t3:.3f} сек")
     print(f"Предварительный расчет данных завершен за {time.perf_counter() - t_start:.3f} сек")
 
-def find_similar_tracks(target_id, top_n=10, metric="cosine"):
+def find_similar_tracks(target_id, user_id: str = None, top_n=10, metric="cosine"):
     t0 = time.perf_counter()
 
     if not CACHED_DATA:
@@ -166,9 +166,31 @@ def find_similar_tracks(target_id, top_n=10, metric="cosine"):
     print(f"[TIMER] расчет расстояний: {time.perf_counter() - t4:.3f} сек")
 
     dists[target_idx] = np.inf
-    top_idx = np.argsort(dists)[:top_n]
-    
-    similarities = [(ids[i], files[ids[i]], dists[i]) for i in top_idx]
+
+    # Get recently played tracks
+    recently_played = set()
+    if user_id:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                ten_minutes_ago = int(time.time()) - 600
+                cur.execute(
+                    "SELECT track_id FROM listening_history WHERE user_id = %s AND last_played > %s",
+                    (user_id, ten_minutes_ago)
+                )
+                rows = cur.fetchall()
+                recently_played = {row['track_id'] for row in rows}
+
+    # Fetch more tracks to have a buffer for filtering
+    initial_top_n = top_n + len(recently_played) + 50 
+    top_idx = np.argsort(dists)
+
+    similarities = []
+    for i in top_idx:
+        track_id = ids[i]
+        if track_id != target_id and track_id not in recently_played:
+            similarities.append((track_id, files[track_id], dists[i]))
+            if len(similarities) >= top_n:
+                break
     
     # Filter out non-finite values to prevent JSON serialization errors
     final_similarities = []
