@@ -478,9 +478,9 @@ body {
 
 /* Кнопка "Добавить в плейлист" */
 .control-button.add-to-playlist {
-  width: 100px;
+  width: 50px;
   height: 50px;
-  border-radius: 20px;
+  border-radius: 50%;
   padding: 0;
   line-height: 1;
 }
@@ -716,6 +716,34 @@ body {
   margin: 20px auto 0;
 }
 
+.player-controls-right {
+  max-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  justify-self: end;
+}
+
+.like-button {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+}
+
+.like-button svg {
+  width: 24px;
+  height: 24px;
+  fill: var(--text-color-secondary);
+  transition: all 0.2s ease;
+}
+
+.like-button:hover svg {
+  fill: var(--primary-color);
+  transform: scale(1.1);
+}
+
 .custom-progress-track {
   flex-grow: 1;
   height: 8px;
@@ -816,7 +844,7 @@ body {
 }
 
 .control-button.wave {
-  width: wrap;
+  width: 120px;
   height: 50px;
   font-size: 1.5rem;
   border-style: solid;
